@@ -2,7 +2,7 @@ var net = require('net');
 var util = require('util');
 var fs = require('fs');
 var moment = require("moment");
-var writeStream = fs.createWriteStream('./log.txt',
+var writeStream = fs.createWriteStream('./ricevuto.log',
 	{'flags' : 'a',
 	 'encoding' : 'utf8',
 	 'mode' : 0x1b6});
@@ -50,7 +50,8 @@ var server = net.createServer(function(conn) {
 	
 	conn.on('data', function (data) {
 		var		now = new Date();
-		console.log(now.toString()+' '+data + ' from ' + conn.remoteAddress + ' ' +
+		console.log(now.toString()+' '+data + ' from ' + 
+			conn.remoteAddress + ' ' +
 			conn.remotePort);
 		
 		var i=0;
@@ -60,9 +61,10 @@ var server = net.createServer(function(conn) {
 			else
 				i++;
 		});
-		if (typeof conndata[i] == "undefined")
-          {conndata[i] = ""};
-		conndata[i] += data;
+		if (typeof conndata[i] == "undefined") {
+			conndata[i] = ""
+		}
+		else conndata[i] += data;
 		//util.log(util.inspect(conn, true, null, true));
 		
 		if(data.length > 3) {
@@ -71,6 +73,10 @@ var server = net.createServer(function(conn) {
 				logga('Bytes ricevuti '+conndata[i].length+' : '+conndata[i]+'\n');
 				conn.write('ack');
 				conndata.splice(i,1);
+			}
+			else {
+				conn.write('ack\n');
+				console.log('risposto a client');
 			}
 		}
 	});
