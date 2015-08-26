@@ -48,12 +48,23 @@ var server = net.createServer(function(conn) {
 		console.log("Current active connections count: "+count);
 	})
 	
+	function ToHex(str) {
+		var hexd = ['0','1','2','3','4','5','6','7','8',
+					'9','a','b','c','d','e','f'];
+		var ret = '';
+		for(var i=0;i<str.length;i++) {
+			ret += hexd[(str[i]&255)/16]+hexd[(str[i]&255)%16]+' ';
+		}
+		return ret;
+	}
+	
 	conn.on('data', function (data) {
 		var		now = new Date();
 		console.log(now.toString()+' '+data + ' from ' + 
 			conn.remoteAddress + ' ' +
 			conn.remotePort);
 		
+		logga('len='+data.length+' '+ToHex(data)+'\n');
 		var i=0;
 		connessioni.forEach(function() {
 			if(connessioni[i] == conn)
@@ -67,18 +78,20 @@ var server = net.createServer(function(conn) {
 		else conndata[i] += data;
 		//util.log(util.inspect(conn, true, null, true));
 		
-		if(data.length > 3) {
+		if(conndata[i].length > 3) {
 			if(data[data.length-2] == 4 && data[data.length-1] == 4) {
 				util.log("Bytes ricevuti "+conn._handle.onread.arguments['2']+" : "+conndata[i]);
 				logga('Bytes ricevuti '+conndata[i].length+' : '+conndata[i]+'\n');
 				conn.write('ack');
 				conndata.splice(i,1);
 			}
-			else {
+			else if (conndata[i].length > 10) {
 				insertData(conndata[i]);
-				conn.write('ack\n');
+				conn.write('ack\r\n');
 				console.log('risposto a client');
+				conndata[i] = '';
 			}
+			
 		}
 	});
 	
@@ -86,15 +99,16 @@ var server = net.createServer(function(conn) {
 		var righe = dats.split('\n');
 		var row;
 		var qr = "INSERT into plots values(";
-		righe.forEach(riga) {
-			row = riga.split(';');	
-			for(var i=0;i<row.length-1;i++) {
-				qr += row[i]+',';	
+		for(var j=0;j<righe.length;j++) {
+			row = righe[j].split(';');	
+			for(var p=0;p<row.length-1;p++) {
+				qr += row[p]+',';	
 			}
-			qr += row[i]+'),(';
+			qr += row[p]+'),(';
 		}
 		qr = qr.substr(0,qr.length-2);
-		console.log(qr);
+		console.log('qr= '+qr);
+		logga('qr= '+qr+'\n');
 	}
 	
 	conn.on('close', function() {
