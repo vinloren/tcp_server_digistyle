@@ -10,6 +10,20 @@ var writeStream = fs.createWriteStream('./log.txt',
 var connessioni = [];
 var conndata = [];
 var cliente = {};
+var Connection = require('tedious').Connection;
+var Request = require('tedious').Request;
+var arrcs = new Array();
+var qrarr = new Array();
+var config = {
+        userName: 'sa',
+        domainName: "localhost.localdomain",
+        password: 'scdvbisa',
+        server: 'localhost',
+        options: {
+            port: '1433',
+            database: 'trips'
+        }
+    };
 
 var logga = function(log) { 
 				var now = moment(new Date());
