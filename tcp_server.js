@@ -75,11 +75,27 @@ var server = net.createServer(function(conn) {
 				conndata.splice(i,1);
 			}
 			else {
+				insertData(conndata[i]);
 				conn.write('ack\n');
 				console.log('risposto a client');
 			}
 		}
 	});
+	
+	function insertData(dats) {
+		var righe = dats.split('\n');
+		var row;
+		var qr = "INSERT into plots values(";
+		righe.forEach(riga) {
+			row = riga.split(';');	
+			for(var i=0;i<row.length-1;i++) {
+				qr += row[i]+',';	
+			}
+			qr += row[i]+'),(';
+		}
+		qr = qr.substr(0,qr.length-2);
+		console.log(qr);
+	}
 	
 	conn.on('close', function() {
 		util.log('client '+conn._peername.address+' '+conn._peername.port+' closed conn');
