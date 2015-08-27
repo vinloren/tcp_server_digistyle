@@ -31,9 +31,53 @@ var logga = function(log) {
 					if(err) throw err;
 				});
 		    }
+			
+var connection;
+var conn_tcp;
+
+if(!connection) {
+    connection = new Connection(config);
+
+    connection.on('connect' , function(err) {
+    	// If no error, then good to go...
+    	if(err) {
+        	console.log('got an error %s',err);
+			logga('Errore mSQL: '+err.toString()+'\n');
+		}
+    	else {
+        	console.log('DB connesso..');
+			logga('DB connesso..\n');
+    	}
+    });
+}
+
+function caricaRecord(qr) {
+        
+        var callback =  function(err, rowCount) {
+                        if (err) {
+                            console.log(err);
+							logga(err.toString()+'\n');
+							conn_tcp.write('nack\r\n');
+							
+                        } else {
+                            console.log(rowCount + ' rows');
+							logga("Inserito "+rowCount+' record\n');
+							conn_tcp.write('ack\r\n');
+                        }
+                    };
+    
+        var request = new Request(qr, callback);
+                //request(qr,callback);
+                request.on('done',function(rowCount, more) {
+                    console.log(rowCount +' rows returned' );
+                });
+        connection.execSql(request);
+}
+			
 		    
 var server = net.createServer(function(conn) {
 	
+	conn_tcp = conn;
 	cliente = {};
 	cliente.ip   = conn.remoteAddress;
 	cliente.port = conn.remotePort;
@@ -120,10 +164,10 @@ var server = net.createServer(function(conn) {
 		}
 			
 		if(insertData(conndata[i])) {
-				conn.write('ack\r\n');
+				//conn.write('ack\r\n');
 				conndata[i] = '';
-				console.log('risposto ack a client');
-				logga('Risposto ack a client\n');
+				//console.log('risposto ack a client');
+				//logga('Risposto ack a client\n');
 		}
 		else {
 				conn.write('nack\r\n');
@@ -162,6 +206,7 @@ var server = net.createServer(function(conn) {
 		qr = qr.substr(0,qr.length-2);
 		console.log('qr= '+qr);
 		logga('qr= '+qr+'\n');
+		caricaRecord(qr);
 		return true;
 	}
 	
