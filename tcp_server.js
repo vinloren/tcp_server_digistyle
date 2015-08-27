@@ -85,55 +85,70 @@ var server = net.createServer(function(conn) {
 		
 		var datas = data.toString();
 		datas = datas.replace('\r','');
-		
+		datas = datas.replace('\n','');
 		if (typeof conndata[i] == "undefined") {
 			conndata[i] = ""
 		}
 		else conndata[i] += datas;
-		//util.log(util.inspect(conn, true, null, true));
 		
+		// se pacchetti gestiti da fine record = EOT EOT
 		if(conndata[i].length > 3) {
 			if(data[data.length-2] == 4 && data[data.length-1] == 4) {
 				util.log("Bytes ricevuti "+conn._handle.onread.arguments['2']+" : "+conndata[i]);
 				logga('Bytes ricevuti '+conndata[i].length+' : '+conndata[i]+'\n');
 				conn.write('ack');
 				conndata.splice(i,1);
+				return;
 			}
-			else if (conndata[i].length > 10) {
-				if(insertData(conndata[i])) {
-					conn.write('ack\r\n');
-					conndata[i] = '';
-				}
-				else {
-					conn.write('nack\r\n');
-				}
-				console.log('risposto a client');
-			}
-			else {
+		}
+		// gestione ascii standard
+		logga("conndata[i] = "+conndata[i]+'\n');
+		if(conndata[i] == '') {
+			conn.write('Ready\r\n');
+			logga('Ready\n');
+			return;
+		}
+			
+		if(insertData(conndata[i])) {
+				conn.write('ack\r\n');
+				conndata[i] = '';
+				console.log('risposto ack a client');
+				logga('Risposto ack a client\n');
+		}
+		else {
 				conn.write('nack\r\n');
-				logga("Risposto nack causa record incompleto.");
-			}		
+				console.log('risposto nack a client');
+				logga('Risposto nack a client\n');
 		}
 	});
 	
 	function insertData(dats) {
-		var righe = dats.split('\n');
+		var righe = dats.split('&');
 		var row;
 		var qr = "INSERT into plots values(";
 		for(var j=0;j<righe.length;j++) {
 			row = righe[j].split(';');
-			if(row.length<5) {
-				logga('Rigetto insert causa riga incompleta: solo '+row.length+' campi= '+righe[j]+'\n');
-				break;
+			if(row.length<5 && j==0) {	
+				logga('Rigetto insert causa riga incompleta: solo '+row.length
+					+' campi= '+ToHex(new Buffer(righe[j],'utf8'))+'\n');
+				return false;
+			}
+			else if(j>0 && row.length < 5) {
+				if(row.length > 1) {
+					logga('qr='+qr+'\nRigetto insert causa riga incompleta: solo '+row.length
+					+' campi= '+ToHex(new Buffer(righe[j],'utf8'))+'\n');
+					return false;
+				}
+				else {
+					row[0] = '';
+				}
 			}
 			for(var p=0;p<row.length-1;p++) {
 				qr += row[p]+',';	
 			}
 			qr += row[p]+'),(';
 		}
-		if(j<righe.length) {
-			return false;
-		}
+		
 		qr = qr.substr(0,qr.length-2);
 		console.log('qr= '+qr);
 		logga('qr= '+qr+'\n');
