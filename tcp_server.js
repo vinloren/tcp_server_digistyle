@@ -46,25 +46,35 @@ var server = net.createServer(function(conn) {
 	server.getConnections(function(err,count) {
 		if(err) throw err;
 		console.log("Current active connections count: "+count);
-	})
+		logga("Current active connections count: "+count+'\n');
+	});
 	
-	function ToHex(str) {
-		var hexd = ['0','1','2','3','4','5','6','7','8',
-					'9','a','b','c','d','e','f'];
+	function ToHex(buf) {
+		var hex = buf.toString('hex');
 		var ret = '';
-		for(var i=0;i<str.length;i++) {
-			ret += hexd[(str[i]&255)/16]+hexd[(str[i]&255)%16]+' ';
+		var i = 0;
+		
+		while(i<hex.length) {
+			ret += hex.substring(i,i+2);
+			i += 2;
+			if(i%4 == 0) {
+				ret += ' ';
+			}
 		}
+		
 		return ret;
 	}
 	
 	conn.on('data', function (data) {
-		var		now = new Date();
-		console.log(now.toString()+' '+data + ' from ' + 
+		var now = moment(new Date());
+		now = now.format("DD MMM YYYY HH:MM:ss.SSS");
+		
+		console.log(now+' '+data + ' from ' + 
 			conn.remoteAddress + ' ' +
 			conn.remotePort);
 		
 		logga('len='+data.length+' '+ToHex(data)+'\n');
+		
 		var i=0;
 		connessioni.forEach(function() {
 			if(connessioni[i] == conn)
@@ -72,10 +82,14 @@ var server = net.createServer(function(conn) {
 			else
 				i++;
 		});
+		
+		var datas = data.toString();
+		datas = datas.replace('\r','');
+		
 		if (typeof conndata[i] == "undefined") {
 			conndata[i] = ""
 		}
-		else conndata[i] += data;
+		else conndata[i] += datas;
 		//util.log(util.inspect(conn, true, null, true));
 		
 		if(conndata[i].length > 3) {
@@ -86,12 +100,19 @@ var server = net.createServer(function(conn) {
 				conndata.splice(i,1);
 			}
 			else if (conndata[i].length > 10) {
-				insertData(conndata[i]);
-				conn.write('ack\r\n');
+				if(insertData(conndata[i])) {
+					conn.write('ack\r\n');
+					conndata[i] = '';
+				}
+				else {
+					conn.write('nack\r\n');
+				}
 				console.log('risposto a client');
-				conndata[i] = '';
 			}
-			
+			else {
+				conn.write('nack\r\n');
+				logga("Risposto nack causa record incompleto.");
+			}		
 		}
 	});
 	
@@ -100,15 +121,23 @@ var server = net.createServer(function(conn) {
 		var row;
 		var qr = "INSERT into plots values(";
 		for(var j=0;j<righe.length;j++) {
-			row = righe[j].split(';');	
+			row = righe[j].split(';');
+			if(row.length<5) {
+				logga('Rigetto insert causa riga incompleta: solo '+row.length+' campi= '+righe[j]+'\n');
+				break;
+			}
 			for(var p=0;p<row.length-1;p++) {
 				qr += row[p]+',';	
 			}
 			qr += row[p]+'),(';
 		}
+		if(j<righe.length) {
+			return false;
+		}
 		qr = qr.substr(0,qr.length-2);
 		console.log('qr= '+qr);
 		logga('qr= '+qr+'\n');
+		return true;
 	}
 	
 	conn.on('close', function() {
