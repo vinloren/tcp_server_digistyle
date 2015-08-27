@@ -2,7 +2,7 @@ var net = require('net');
 var util = require('util');
 var fs = require('fs');
 var moment = require("moment");
-var writeStream = fs.createWriteStream('./ricevuto.log',
+var writeStream = fs.createWriteStream('./tcpserver.log',
 	{'flags' : 'a',
 	 'encoding' : 'utf8',
 	 'mode' : 0x1b6});
@@ -44,9 +44,14 @@ var server = net.createServer(function(conn) {
 	//console.log(connessioni[connessioni.length-1]);
 	//util.log(util.inspect(conn, true, null, true));
 	server.getConnections(function(err,count) {
-		if(err) throw err;
-		console.log("Current active connections count: "+count);
-		logga("Current active connections count: "+count+'\n');
+		if(err) {
+			logga(err.toString()+'\n');
+			console.log(err.toString()+'\n');
+		}
+		else {
+			console.log("Current active connections count: "+count);
+			logga("Current active connections count: "+count+'\n');
+		}
 	});
 	
 	function ToHex(buf) {
@@ -64,6 +69,11 @@ var server = net.createServer(function(conn) {
 		
 		return ret;
 	}
+	
+	conn.on('error', function (err) {
+		logga(err.toString()+'\n');
+		console.log(err.toString()+'\n');	
+	});
 	
 	conn.on('data', function (data) {
 		var now = moment(new Date());
