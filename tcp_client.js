@@ -14,8 +14,17 @@ var logga = function(log) {
 					if(err) throw err;
 				});
 		    }
+var myId = '3334177441';
 var connected = false;	
 var reccnt = 0;		
+process.argv.forEach(function (val, index, array) {
+	switch(index) {
+		case 2:
+			myId = val;
+			console.log(index + ': ' + val);
+	}
+});
+
 client.setEncoding('utf8');
 // connect to server
 client.connect ('8124','localhost', function () {
@@ -37,7 +46,7 @@ function prepData() {
 	[speed] [smallint] NOT NULL,
 	[rotta] [real] NOT NULL,
 	**/
-	var record = '3334177441;';
+	var record = myId+';';
 	record += Math.floor(Date.now()/1000).toString()+';';
 	var lat = Math.floor(Math.random()*20000)+440000;
 	var long = Math.floor(Math.random()*20000)+90000;
