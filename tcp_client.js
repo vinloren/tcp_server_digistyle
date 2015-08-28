@@ -30,7 +30,7 @@ process.argv.forEach(function (val, index, array) {
 			console.log(index + ' port: ' + val);
 			break;
 		case 4:
-			myip = val;
+			host = val;
 			console.log(index + ' host: ' + val);
 	}
 });
