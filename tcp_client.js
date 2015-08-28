@@ -15,19 +15,29 @@ var logga = function(log) {
 				});
 		    }
 var myId = '3334177441';
+var port = '8124';
+var host = 'localhost';
 var connected = false;	
 var reccnt = 0;		
 process.argv.forEach(function (val, index, array) {
 	switch(index) {
 		case 2:
 			myId = val;
-			console.log(index + ': ' + val);
+			console.log(index + ' myId: ' + val);
+			break;
+		case 3:
+			port = val;
+			console.log(index + ' port: ' + val);
+			break;
+		case 4:
+			myip = val;
+			console.log(index + ' host: ' + val);
 	}
 });
 
 client.setEncoding('utf8');
 // connect to server
-client.connect ('8124','localhost', function () {
+client.connect (port,host, function () {
 	console.log('connected to server');
 	//client.write('>');
 	// prepara pacchetto dati

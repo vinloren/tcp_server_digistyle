@@ -25,6 +25,16 @@ var config = {
         }
     };
 
+var port = '8124';
+process.argv.forEach(function (val, index, array) {
+	switch(index) {
+		case 2:
+			port = val;
+			console.log(index + ' port: ' + val);
+			break;
+	}
+});	
+
 var logga = function(log) { 
 				var now = moment(new Date());
 				writeStream.write(now.format("DD MMM YYYY HH:MM:ss.SSS")+' '+log,'utf8',function(err) {
@@ -236,5 +246,5 @@ var server = net.createServer(function(conn) {
 			util.log("Current active connections count: "+count);
 		})	
 	});
-}).listen(8124);
-console.log('listening on port 8124');
+}).listen(CSSImportRule);
+console.log('listening on port '+port);
