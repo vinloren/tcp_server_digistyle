@@ -7,6 +7,7 @@ var writeStream = fs.createWriteStream('./tcpserver.log',
 	 'encoding' : 'utf8',
 	 'mode' : 0x1b6});
 
+var connSql = [];
 var connessioni = [];
 var conndata = [];
 var cliente = {};
@@ -43,23 +44,7 @@ var logga = function(log) {
 		    }
 			
 var connection;
-var conn_tcp;
-
-if(!connection) {
-    connection = new Connection(config);
-
-    connection.on('connect' , function(err) {
-    	// If no error, then good to go...
-    	if(err) {
-        	console.log('got an error %s',err);
-			logga('Errore mSQL: '+err.toString()+'\n');
-		}
-    	else {
-        	console.log('DB connesso..');
-			logga('DB connesso..\n');
-    	}
-    });
-}
+var conndx = 0;
 
 function caricaRecord(qr) {
         
@@ -67,12 +52,12 @@ function caricaRecord(qr) {
                         if (err) {
                             console.log(err);
 							logga(err.toString()+'\n');
-							conn_tcp.write('nack\r\n');
+							connessioni[conndx].write('nack\r\n');
 							
                         } else {
                             console.log(rowCount + ' rows');
 							logga("Inserito "+rowCount+' record\n');
-							conn_tcp.write('ack\r\n');
+							connessioni[conndx].write('ack\r\n');
                         }
                     };
     
@@ -81,7 +66,7 @@ function caricaRecord(qr) {
                 request.on('done',function(rowCount, more) {
                     console.log(rowCount +' rows returned' );
                 });
-        connection.execSql(request);
+        connSql[conndx].execSql(request);
 }
 			
 		    
@@ -92,6 +77,19 @@ var server = net.createServer(function(conn) {
 	cliente.ip   = conn.remoteAddress;
 	cliente.port = conn.remotePort;
 	connessioni.push(conn);
+	connection = new Connection(config);
+    connection.on('connect' , function(err) {
+    	// If no error, then good to go...
+    	if(err) {
+        	console.log('got an error %s',err);
+			logga('Errore mSQL: '+err.toString()+'\n');
+		}
+    	else {
+        	console.log('DB connesso per '+cliente.ip);
+			logga('DB connesso per '+cliente.ip+'\n');
+    	}
+    });
+	connSql.push(connection);
 	util.log('connected: '+ cliente.ip+' '+cliente.port);
 	logga('connected: '+ cliente.ip+' '+cliente.port+'\n');
 	
@@ -141,8 +139,10 @@ var server = net.createServer(function(conn) {
 		
 		var i=0;
 		connessioni.forEach(function() {
-			if(connessioni[i] == conn)
+			if(connessioni[i] == conn) {
+				conndx = i;
 				return;
+			}
 			else
 				i++;
 		});
@@ -166,7 +166,7 @@ var server = net.createServer(function(conn) {
 			}
 		}
 		// gestione ascii standard
-		logga("conndata[i] = "+conndata[i]+'\n');
+		logga('conndata['+i+'i] = '+conndata[i]+'\n');
 		if(conndata[i] == '') {
 			conn.write('Ready\r\n');
 			logga('Ready\n');
@@ -174,10 +174,7 @@ var server = net.createServer(function(conn) {
 		}
 			
 		if(insertData(conndata[i])) {
-				//conn.write('ack\r\n');
-				conndata[i] = '';
-				//console.log('risposto ack a client');
-				//logga('Risposto ack a client\n');
+				conndata[i] = '';			
 		}
 		else {
 				conn.write('nack\r\n');
@@ -233,7 +230,9 @@ var server = net.createServer(function(conn) {
 		if(i<connessioni.length) {
 			//console.log("Elimino i="+i+" in array connessioni");
 			connessioni.splice(i,1);
-			conndata.splice(i,1);
+			conndata.splice(i,1);		
+			connSql[i].close();
+			connSql.splice(i,1);
 			console.log("Connessioni attive in array: "+connessioni.length);
 			logga('client '+conn._peername.address+' '+conn._peername.port+' chiuso conn; ne restano attive '+connessioni.length+'\n');
 		}
