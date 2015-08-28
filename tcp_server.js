@@ -246,5 +246,5 @@ var server = net.createServer(function(conn) {
 			util.log("Current active connections count: "+count);
 		})	
 	});
-}).listen(CSSImportRule);
+}).listen(port);
 console.log('listening on port '+port);
