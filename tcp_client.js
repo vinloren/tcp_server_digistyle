@@ -18,7 +18,9 @@ var myId = '3334177441';
 var port = '8124';
 var host = 'localhost';
 var connected = false;	
+var acked = false;
 var reccnt = 0;		
+var lastrec = '';
 process.argv.forEach(function (val, index, array) {
 	switch(index) {
 		case 2:
@@ -39,11 +41,12 @@ client.setEncoding('utf8');
 // connect to server
 client.connect (port,host, function () {
 	console.log('connected to server');
+	logga(myId+' Connesso a server\n');
 	//client.write('>');
 	// prepara pacchetto dati
-	var pkt = prepData();
-	client.write(pkt);
-	connected = true;
+	//var pkt = prepData();
+	//client.write(pkt);
+	//connected = true;
 });
 
 
@@ -70,15 +73,18 @@ function prepData() {
 	rotta = Math.floor(rotta*10);
 	rotta /= 10;
 	record += rotta.toString()+'\n';
+	lastrec = record;
 	return record;
 }
 
 var timer = setInterval(function() { 
-		if(connected && reccnt < 10) {
+		if(acked && reccnt < 10) {
 			client.write(prepData());
+			acked = false;
 			reccnt++;
+			logga('Inviato record '+reccnt+'\n');
 		}
-		else if(connected) {
+		else if(acked) {
 			client.destroy();
 		}
 	}, 5000);
@@ -95,8 +101,18 @@ process.stdin.on('data', function (data) {
 
 // when receive data back, print to console
 client.on('data',function(data) {
+		connected = true;
 		console.log(data);
-		logga(data+'\n');
+		logga(myId+': '+data);
+		if(data.toString() === 'ack\r\n'
+			|| data.toString() === 'Ready\r\n') {
+			acked = true;
+		}
+		else if(data.toString() === 'nack\r\n') {
+			console.log("Reinvio record.");
+			logga('Reinvio record '+reccnt+'\n');
+			client.write(lastrec);
+		}
 });
 // when server closed
 client.on('close',function() {

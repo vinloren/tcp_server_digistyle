@@ -77,6 +77,7 @@ var server = net.createServer(function(conn) {
 	cliente.ip   = conn.remoteAddress;
 	cliente.port = conn.remotePort;
 	connessioni.push(conn);
+	
 	connection = new Connection(config);
     connection.on('connect' , function(err) {
     	// If no error, then good to go...
@@ -87,9 +88,14 @@ var server = net.createServer(function(conn) {
     	else {
         	console.log('DB connesso per '+cliente.ip);
 			logga('DB connesso per '+cliente.ip+'\n');
-    	}
+    		connSql.push(connection);
+			// trova indice/connSql relativa a conn
+			conn_tcp = connessioni[connSql.length-1];
+			conn_tcp.write('Ready\r\n');
+			logga("Risposto 'Ready' a conn_tcp "+(connSql.length-1)+'\n');
+		}
     });
-	connSql.push(connection);
+	
 	util.log('connected: '+ cliente.ip+' '+cliente.port);
 	logga('connected: '+ cliente.ip+' '+cliente.port+'\n');
 	
@@ -103,6 +109,7 @@ var server = net.createServer(function(conn) {
 		else {
 			console.log("Current active connections count: "+count);
 			logga("Current active connections count: "+count+'\n');
+			//conn.write('Ready\r\n');
 		}
 	});
 	
@@ -118,7 +125,6 @@ var server = net.createServer(function(conn) {
 				ret += ' ';
 			}
 		}
-		
 		return ret;
 	}
 	
@@ -153,7 +159,7 @@ var server = net.createServer(function(conn) {
 		if (typeof conndata[i] == "undefined") {
 			conndata[i] = ""
 		}
-		else conndata[i] += datas;
+		conndata[i] += datas;
 		
 		// se pacchetti gestiti da fine record = EOT EOT
 		if(conndata[i].length > 3) {
@@ -166,7 +172,7 @@ var server = net.createServer(function(conn) {
 			}
 		}
 		// gestione ascii standard
-		logga('conndata['+i+'i] = '+conndata[i]+'\n');
+		logga('conndata['+i+'] = '+conndata[i]+'\n');
 		if(conndata[i] == '') {
 			conn.write('Ready\r\n');
 			logga('Ready\n');
@@ -194,7 +200,7 @@ var server = net.createServer(function(conn) {
 					+' campi= '+ToHex(new Buffer(righe[j],'utf8'))+'\n');
 				return false;
 			}
-			else if(j>0 && row.length < 5) {
+			else if(j>0 && row.length < 6) {
 				if(row.length > 1) {
 					logga('qr='+qr+'\nRigetto insert causa riga incompleta: solo '+row.length
 					+' campi= '+ToHex(new Buffer(righe[j],'utf8'))+'\n');
