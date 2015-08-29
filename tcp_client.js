@@ -61,10 +61,10 @@ function prepData() {
 	**/
 	var record = myId+';';
 	record += Math.floor(Date.now()/1000).toString()+';';
-	var lat = Math.floor(Math.random()*20000)+440000;
-	var long = Math.floor(Math.random()*20000)+90000;
-	lat  /= 10000;
-	long /= 10000;
+	var lat = Math.floor(Math.random()*200000)+4400000;
+	var long = Math.floor(Math.random()*200000)+900000;
+	lat  /= 100000;
+	long /= 100000;
 	var speed= Math.floor(Math.random()*110);
 	var rotta= Math.random()*360;
 	record += lat.toString()+';';
