@@ -46,27 +46,33 @@ var logga = function(log) {
 var connection;
 var conndx = 0;
 
-function caricaRecord(qr) {
+function caricaRecord(qr,cndx) {
         
-        var callback =  function(err, rowCount) {
+       	var callback = function(err, rowCount) {
+		   				var cnx = cndx;
                         if (err) {
                             console.log(err);
 							logga(err.toString()+'\n');
-							connessioni[conndx].write('nack\r\n');
+							connessioni[cnx].write('nack\r\n');
 							
                         } else {
                             console.log(rowCount + ' rows');
 							logga("Inserito "+rowCount+' record\n');
-							connessioni[conndx].write('ack\r\n');
+							connessioni[cnx].write('ack\r\n');
                         }
                     };
-    
-        var request = new Request(qr, callback);
-                //request(qr,callback);
-                request.on('done',function(rowCount, more) {
-                    console.log(rowCount +' rows returned' );
-                });
-        connSql[conndx].execSql(request);
+       	
+		var request = new Request(qr,callback);
+       	connSql[cndx].execSql(request);
+		request.on('done',function(rowCount, more) {
+                    	console.log(rowCount +' rows returned' );
+                		if(rowCount > 1) {
+							logga(rowCount +' righe confermate\n'); 
+						}
+						else {
+							logga(rowCount +' riga confermata\n');
+						}
+					});  		   
 }
 			
 		    
@@ -219,7 +225,7 @@ var server = net.createServer(function(conn) {
 		qr = qr.substr(0,qr.length-2);
 		console.log('qr= '+qr);
 		logga('qr= '+qr+'\n');
-		caricaRecord(qr);
+		caricaRecord(qr,conndx);
 		return true;
 	}
 	
