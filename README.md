@@ -1,7 +1,7 @@
 # tcp_server_digistyle
 JS tcp_server per servire raccolta dati da parte di client che li inviano secondo un protocollo TCP socket
 con un formato record tale da permettere al server di inserire i dati in un uSoft SQL Server poi accessibile
-per consultazioni e statistiche.
+per consultazioni e statistiche. Il modulo usato per accesso a mSql Server è 'tedious.js'.
 
 Obiettivo del server è quello di servire un numero di client collegati in contemporanea, pari a diverse decine,  
 tutti per caricare dati omogenei nella stessa tabella mSql. Qui nasce il primo problema ovvero se sia opportuno 
@@ -17,35 +17,45 @@ asincrone nella connessione TCP con funzioni asincrone nella connessione mSql se
 
 Ecco allora che risulta più agevole attribuire una connessione mSql a ciascuna connessione TCP attiva e poi 
 fare in modo che il server possa notificare con 'ack' l'avvenuta insert al client che l'aveva richiesta. 
-La soluzione adottata è la seguente:
 
-function caricaRecord(qr,cndx) { // cndx è l'indice nell'array connessioni TCP che identifica il client socket
+Prevediamo allora il massimo numero di connessioni concorrenti prevedibili e apriamo una conn_mSql per ciascuna 
+di esse. Data la natura asincrona di node.js può capitare all'avvio di tcp_server.js che le n connessioni
+previste col DB non siano ancora state attivate mentre arriva una ennesima cnnessione TCP di numero maggiore
+della massima conn_mSql attivata. In questo caso, come pure nel caso di ennesima connessione TCP > del max
+numero previsto, tcp_server.js risponde con 'DB non pronto, riprova\r\n' chiudendo subito il tcp socket relativo:
+	if(connessioni.length+1 > connSql.length) {
+		conn.write('DB non pronto, riprova\r\n');
+		conn.close();
+		return;
+	}
+Se invece la conn TCP trova una corrispondente conn_mSql attivata allora la risposta al client sarà:
+conn.write('Ready\r\n'); e il client potrà inoltrare il primo invio dati.
+
+Per quanto concerne la gestione di fine inserimento dati in DB e notifica a client avremo:
+
+function caricaRecord(qr,cndx) { // cndx = indice array connessioni TCP
        	var callback = function(err, rowCount) {
-		   				var cnx = cndx;
+		   				
                         if (err) {
                             console.log(err);
 							logga(err.toString()+'\n');
-							connessioni[cnx].write('nack\r\n');
+							connessioni[cndx].write('nack\r\n');
+							logga('Errore su mSql_conn '+cndx+'\n');
 							
                         } else {
                             console.log(rowCount + ' rows');
 							logga("Inserito "+rowCount+' record\n');
-							connessioni[cnx].write('ack\r\n');
+							connessioni[cndx].write('ack\r\n');
+							logga('Ok insert su msQl_con'+cndx+'\n');
                         }
+						
                     };
-       	
-		var request = new Request(qr,callback); // quando la callback sarà chiamata essa conterrà gli opportuni
-												// riferimenti per informare il client sull'esito della 
-												// richiesta inoltrata (ack / nack)
-       	connSql[cndx].execSql(request);
-		request.on('done',function(rowCount, more) {
-                    	console.log(rowCount +' rows returned' );
-						logga(rowCount +' rows returned\n'); 
-                	});  		   
+		var request = new Request(qr,callback);
+       	connSql[cndx].execSql(request);	   	// connessione mSql in array con stesso indice conn. TCP
 }
-In questo modo il client ha la notifica di come è stata eseguita la sua richiesta e, ricevendo ack, può inviarne
-una nuova sicuro che la precedente sia nadata a buon fine, oppure reinviare la stessa richiesta nel caso abbia 
-ricevuto 'nack'.
+Data la corrispondenza 1:1 degli indici nei due array (tcp_conn / mSql_conn) tcp_server.js sa a chi notificare 
+esito della insert appena conclusa positivamente (ack) o negativamente (nack).
+
 
 Soluzione con una singola connessione a DB mSql
 -----------------------------------------------
@@ -54,3 +64,6 @@ insert accumulate eseguite sequenzialmente in modo asincrono rispetto alle richi
 via setTimeout con cadenza di 500mS (ad esempio). Questa soluzione però non sarebbe in grado di informare 
 contestualmente il client sull'esito della sua richiesta (verrebbe risposto 'ack' subito ad ogni ricezione) il che 
 non mi pare una bella trovata. La soluzione adottata in questa applicazione è quindi quella descritta sopra.
+
+
+

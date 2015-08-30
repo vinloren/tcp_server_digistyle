@@ -45,45 +45,13 @@ var logga = function(log) {
 			
 var connection;
 var conndx = 0;
+var MAXCONN = 10;
+var c = 0;
 
-function caricaRecord(qr,cndx) {
-        
-       	var callback = function(err, rowCount) {
-		   				var cnx = cndx;
-                        if (err) {
-                            console.log(err);
-							logga(err.toString()+'\n');
-							connessioni[cnx].write('nack\r\n');
-							
-                        } else {
-                            console.log(rowCount + ' rows');
-							logga("Inserito "+rowCount+' record\n');
-							connessioni[cnx].write('ack\r\n');
-                        }
-                    };
-       	
-		var request = new Request(qr,callback);
-       	connSql[cndx].execSql(request);
-		request.on('done',function(rowCount, more) {
-                    	console.log(rowCount +' rows returned' );
-                		if(rowCount > 1) {
-							logga(rowCount +' righe confermate\n'); 
-						}
-						else {
-							logga(rowCount +' riga confermata\n');
-						}
-					});  		   
-}
-			
-		    
-var server = net.createServer(function(conn) {
-	
-	conn_tcp = conn;
-	cliente = {};
-	cliente.ip   = conn.remoteAddress;
-	cliente.port = conn.remotePort;
-	connessioni.push(conn);
-	
+// crea pool di MAXCONN connessioni a DB da usare  
+// per future 10 connessioni TCP
+
+function getConn() {
 	connection = new Connection(config);
     connection.on('connect' , function(err) {
     	// If no error, then good to go...
@@ -92,15 +60,58 @@ var server = net.createServer(function(conn) {
 			logga('Errore mSQL: '+err.toString()+'\n');
 		}
     	else {
-        	console.log('DB connesso per '+cliente.ip);
-			logga('DB connesso per '+cliente.ip+'\n');
-    		connSql.push(connection);
-			// trova indice/connSql relativa a conn
-			conn_tcp = connessioni[connSql.length-1];
-			conn_tcp.write('Ready\r\n');
-			logga("Risposto 'Ready' a conn_tcp "+(connSql.length-1)+'\n');
+			connSql.push(connection);
+        	console.log('DB connesso per conn'+c);
+			logga('DB connesso per conn'+c+'\n');
+			c++;
+			if(c < MAXCONN) {
+				getConn();
+			}
 		}
-    });
+    });	
+}
+
+getConn();
+
+function caricaRecord(qr,cndx) {
+        
+       	var callback = function(err, rowCount) {
+		   				
+                        if (err) {
+                            console.log(err);
+							logga(err.toString()+'\n');
+							connessioni[cndx].write('nack\r\n');
+							logga('Errore su mSql_conn '+cndx+'\n');
+							
+                        } else {
+                            console.log(rowCount + ' rows');
+							logga("Inserito "+rowCount+' record\n');
+							connessioni[cndx].write('ack\r\n');
+							logga('Ok insert su msQl_con'+cndx+'\n');
+                        }
+						
+                    };
+		
+		var request = new Request(qr,callback);
+       	connSql[cndx].execSql(request);	   
+}
+
+
+			
+		    
+var server = net.createServer(function(conn) {
+	
+	cliente = {};
+	cliente.ip   = conn.remoteAddress;
+	cliente.port = conn.remotePort;
+	
+	if(connessioni.length+1 > connSql.length) {
+		conn.write('DB non pronto, riprova\r\n');
+		conn.close();
+		return;
+	}
+	
+	connessioni.push(conn);
 	
 	util.log('connected: '+ cliente.ip+' '+cliente.port);
 	logga('connected: '+ cliente.ip+' '+cliente.port+'\n');
@@ -115,7 +126,7 @@ var server = net.createServer(function(conn) {
 		else {
 			console.log("Current active connections count: "+count);
 			logga("Current active connections count: "+count+'\n');
-			//conn.write('Ready\r\n');
+			conn.write('Ready\r\n');
 		}
 	});
 	
@@ -239,12 +250,11 @@ var server = net.createServer(function(conn) {
 			else
 				i++;
 		});
+		
 		if(i<connessioni.length) {
 			//console.log("Elimino i="+i+" in array connessioni");
 			connessioni.splice(i,1);
 			conndata.splice(i,1);		
-			connSql[i].close();
-			connSql.splice(i,1);
 			console.log("Connessioni attive in array: "+connessioni.length);
 			logga('client '+conn._peername.address+' '+conn._peername.port+' chiuso conn; ne restano attive '+connessioni.length+'\n');
 		}

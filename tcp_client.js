@@ -82,7 +82,7 @@ var timer = setInterval(function() {
 			client.write(prepData());
 			acked = false;
 			reccnt++;
-			logga('Inviato record '+reccnt+'\n');
+			logga(myId+' Inviato record '+reccnt+'\n');
 		}
 		else if(acked) {
 			client.destroy();
@@ -109,8 +109,8 @@ client.on('data',function(data) {
 			acked = true;
 		}
 		else if(data.toString() === 'nack\r\n') {
-			console.log("Reinvio record.");
-			logga('Reinvio record '+reccnt+'\n');
+			console.log(myId+" Reinvio record.");
+			logga(myId+' Reinvio record '+reccnt+'\n');
 			client.write(lastrec);
 		}
 });
