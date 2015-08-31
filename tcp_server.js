@@ -56,8 +56,9 @@ function getConn() {
     connection.on('connect' , function(err) {
     	// If no error, then good to go...
     	if(err) {
-        	console.log('got an error %s',err);
-			logga('Errore mSQL: '+err.toString()+'\n');
+        	console.log('Errore connessione DB: %s',err);
+			logga('Errore connessione DB: '+err.toString()+'\n');
+			process.exit();
 		}
     	else {
 			connSql.push(connection);

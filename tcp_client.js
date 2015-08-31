@@ -114,8 +114,15 @@ client.on('data',function(data) {
 			client.write(lastrec);
 		}
 });
-// when server closed
+
+client.on('error', function(err) {
+	console.log("Errore %s"+err);
+	logga('Errore: '+err.toString());
+	process.exit();	
+});
+
 client.on('close',function() {
-	console.log('connection is closed');
+	console.log('Connesione chiusa');
+	logga('Connessione chiusa\n');
 	process.exit();
 });
