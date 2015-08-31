@@ -1,0 +1,38 @@
+{
+  "name": "tcp_server_digistyle",
+  "description": "TCP server per dati gps client in movimento in DB mSql",
+  "version": "1.0.0",
+  "author": {
+    "name": "Vincenzo lorenzale",
+    "email": "vinloren@gmail.com"
+  },
+  "contributors": [
+    {
+      "name": "Vincenzo Lorenzale",
+      "email": "vinloren@alice.it"
+    }
+  ],
+  "keywords": [
+    "tcp server",
+    "tcp_server",
+    "tcpserver",
+    "vinloren"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vinloren/tcp_server_digistyle/"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "moment":  ">=2.10.6",
+    "tedious": ">=1.12.2"
+  },
+  "engines": {
+    "node": ">= 0.10.0"
+  },
+  "readmeFilename": "Readme.md",
+  "bugs": {
+    "url": "https://github.com/vinloren/tcp_server_digistyle/issues"
+  },
+  "homepage": "https://github.com/vinloren/tcp_server_digistyle/"
+}

@@ -106,8 +106,7 @@ var server = net.createServer(function(conn) {
 	cliente.port = conn.remotePort;
 	
 	if(connessioni.length+1 > connSql.length) {
-		conn.write('DB non pronto, riprova\r\n');
-		conn.close();
+		conn.end('DB non pronto, riprova\r\n');
 		return;
 	}
 	
