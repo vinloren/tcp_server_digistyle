@@ -8,6 +8,15 @@ tutti per caricare dati omogenei nella stessa tabella mSql. Qui nasce il primo p
 gestire il tutto con un'unica connessione al DB oppure con una connessione per ciascun client al momento in
 sessione.
 
+Soluzione con una singola connessione a DB mSql
+-----------------------------------------------
+Una via d'uscita sarebbe quella di accodare le richieste ricevute in un array che poi viene scaricato (le ralative
+insert accumulate eseguite sequenzialmente in modo asincrono rispetto alle richieste ricevute) periodicamente 
+via setTimeout con cadenza di 500mS (ad esempio). Questa soluzione però non sarebbe in grado di informare 
+contestualmente il client sull'esito della sua richiesta (verrebbe risposto 'ack' subito ad ogni ricezione) il che 
+non mi pare una bella trovata. La soluzione adottata in questa applicazione è quindi quella di attribuire una 
+propria connessione mSql a ciascuna connessione TCP aperta.
+
 Soluzione con una conn mSql per ciascuna conn Tcp:
 --------------------------------------------------
 Utilizzare un'unica connessione mSql crea problemi di sincronizzazione delle richieste di insert che non
@@ -56,14 +65,22 @@ function caricaRecord(qr,cndx) { // cndx = indice array connessioni TCP
 Data la corrispondenza 1:1 degli indici nei due array (tcp_conn / mSql_conn) tcp_server.js sa a chi notificare 
 esito della insert appena conclusa positivamente (ack) o negativamente (nack).
 
+PROTOCOLLO SCAMBIO DATI CLIENT/SERVER
+-------------------------------------
 
-Soluzione con una singola connessione a DB mSql
------------------------------------------------
-Una via d'uscita sarebbe quella di accodare le richieste ricevute in un array che poi viene scaricato (le ralative
-insert accumulate eseguite sequenzialmente in modo asincrono rispetto alle richieste ricevute) periodicamente 
-via setTimeout con cadenza di 500mS (ad esempio). Questa soluzione però non sarebbe in grado di informare 
-contestualmente il client sull'esito della sua richiesta (verrebbe risposto 'ack' subito ad ogni ricezione) il che 
-non mi pare una bella trovata. La soluzione adottata in questa applicazione è quindi quella descritta sopra.
+Formato record (lunghezza variabile):
+1 char STX (0x02)
+2 char MSGLEN (Hex)
+7 char ID HOME BOX (ASCII numerico = Serial number della HBox chiamante)
+1 INFO_TYPE: <-> ACK: 0x01, NACK: 0x01, <- ALIVE: 0x03, ALARM: 0x04, CALL: 0x05, ->HANGUP: 0x06, PAR: 0x07
+x MSG  ASCII lunghezza variabile campi separati da ; e '\n' a chiusura messaggio
+1 char CRC (Hex)  XOR su tutti i byte del campo INFO_TYPE+MSG. Codificato come il campo MSGLEN.
+1 char ETX (0x03)
+
+Protocollo:
+il server risponde a ciascuna richiesta con Ack o Nack. A seguito di Nack il cliente chiude la connessione, in 
+caso di Ack rimane in attesa di HANGUP da parte del server, ricevuto HANGUP chiude connessione.
+
 
 
 
