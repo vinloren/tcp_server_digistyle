@@ -194,15 +194,15 @@ var server = net.createServer(function(conn) {
 		logga('conndata['+i+'] = '+conndata[i]+'\n');
 		if(conndata[i].charCodeAt(3) == 0x01) {
 			conndata[i] = '';
-			logga(callerID+': ricevuto ack\n');
-			console.log(callerID+': ricevuto ack');
+			logga(callerID[i]+': ricevuto ack\n');
+			console.log(callerID[i]+': ricevuto ack');
 			return;		
 		}
 		else if(conndata[i].charCodeAt(3) == 0x05) {
 			// nack a HANGUP chiudo conn
 			conn.end('\5'); // send nack e chiudi
-			logga(callerID+': ricevuto nack, chiudo connessione\n');
-			console.log(callerID+': ricevuto nack, chiudo connessione');
+			logga(callerID[i]+': ricevuto nack, chiudo connessione\n');
+			console.log(callerID[i]+': ricevuto nack, chiudo connessione');
 			return;
 		}
 		else if(conndata[i].charCodeAt(3) == 0x03 ||
@@ -213,13 +213,11 @@ var server = net.createServer(function(conn) {
 		
 		if(insertData(conndata[i])) {
 				conndata[i] = '';
-				sendResp(1);
+				sendResp(1); // send Ack
 				sendResp('HANGUP');			
 		}
 		else {
 				sendResp(5); // send Nack
-				console.log('risposto nack a client');
-				logga('Risposto nack a client\n');
 		}
 	});
 	
@@ -263,8 +261,8 @@ var server = net.createServer(function(conn) {
 		else if(answ == 5) {
 			answ = 'Nack';
 		}
-		console.log("invio risposta: "+answ+' '+buf.toString('hex'));
-		logga("invio risposta: "+answ+' '+buf.toString('hex')+'\n');
+		console.log(callerID[conndx]+": invio risposta: "+answ+' '+buf.toString('hex'));
+		logga(callerID[conndx]+": invio risposta: "+answ+' '+buf.toString('hex')+'\n');
 		conn.write(buf.toString('utf8'));		
 	}
 	
