@@ -65,6 +65,7 @@ function caricaRecord(qr,cndx) { // cndx = indice array connessioni TCP
 Data la corrispondenza 1:1 degli indici nei due array (tcp_conn / mSql_conn) tcp_server.js sa a chi notificare 
 esito della insert appena conclusa positivamente (ack) o negativamente (nack).
 
+
 PROTOCOLLO SCAMBIO DATI CLIENT/SERVER
 -------------------------------------
 
@@ -72,7 +73,7 @@ Formato record (lunghezza variabile):
 1 char STX (0x02)
 2 char MSGLEN (Hex)
 7 char ID HOME BOX (ASCII numerico = Serial number della HBox chiamante)
-1 INFO_TYPE: <-> ACK: 0x01, NACK: 0x01, <- ALIVE: 0x03, ALARM: 0x04, CALL: 0x05, ->HANGUP: 0x06, PAR: 0x07
+1 INFO_TYPE: <-> ACK: 0x01, NACK: 0x05, <- ALIVE: 0x03, ALARM: 0x04, CALL: 0x05, ->HANGUP: 0x06, PAR: 0x07
 x MSG  ASCII lunghezza variabile campi separati da ; e '\n' a chiusura messaggio
 1 char CRC (Hex)  XOR su tutti i byte del campo INFO_TYPE+MSG. Codificato come il campo MSGLEN.
 1 char ETX (0x03)
@@ -81,6 +82,62 @@ Protocollo:
 il server risponde a ciascuna richiesta con Ack o Nack. A seguito di Nack il cliente chiude la connessione, in 
 caso di Ack rimane in attesa di HANGUP da parte del server, ricevuto HANGUP chiude connessione.
 
+POSSIBILE CONTENUTO MSG:
+(alarm) id_box;matricola;id_sensore;id_allarme
+(alive) id_box;matricola;tipo_alimentazion;anomalie o niente
+
+- 	box
+o	id_box
+o	matricola
+o	id_sim
+o	id_utente
+
+-	sensori
+o	id_sensore
+o	id_box
+o	ts_ultimo_test_effettuato
+o	ts_ultima_comunicazione_spontanea
+o	tipo_sensore
+
+-	utenti
+o	id_utente
+o	nominativo
+o	tel1
+o	tel2
+o	tel3
+o	tel4
+o	tel5
+
+-	alive
+o	id_box
+o	ts
+o	tipo_alimentazione
+o	anomalia_assenza_sensori
+o	power_failure
+o	id_sensore
+o	carica_batteria_sensore
+
+-	alarm
+o	id_box
+o	ts
+o	id_sensore
+o	status (se proviene da alive o da alarm)
+
+-	call
+o	ts
+o	id_box
+
+-	chiamate
+o	id_chiamata
+o	id_box
+o	stato
+o	ts_inizio
+o	ts_fine
+
+-	par
+o	id_par
+o	id_chiamata
+o	body
 
 
 

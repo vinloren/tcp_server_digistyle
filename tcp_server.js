@@ -10,6 +10,7 @@ var writeStream = fs.createWriteStream('./tcpserver.log',
 var connSql = [];
 var connessioni = [];
 var conndata = [];
+var callerID = [];
 var cliente = {};
 var Connection = require('tedious').Connection;
 var Request = require('tedious').Request;
@@ -50,7 +51,6 @@ var c = 0;
 
 // crea pool di MAXCONN connessioni a DB da usare  
 // per future 10 connessioni TCP
-
 function getConn() {
 	connection = new Connection(config);
     connection.on('connect' , function(err) {
@@ -76,30 +76,28 @@ getConn();
 
 function caricaRecord(qr,cndx) {
         
-       	var callback = function(err, rowCount) {
+       var callback = function(err, rowCount) {
 		   				
-                        if (err) {
-                            console.log(err);
-							logga(err.toString()+'\n');
-							connessioni[cndx].write('nack\r\n');
-							logga('Errore su mSql_conn '+cndx+'\n');
-							
-                        } else {
-                            console.log(rowCount + ' rows');
-							logga("Inserito "+rowCount+' record\n');
-							connessioni[cndx].write('ack\r\n');
-							logga('Ok insert su msQl_con'+cndx+'\n');
-                        }
+       if (err) {
+                 console.log(err);
+				 logga(err.toString()+'\n');
+				 connessioni[cndx].write('nack\r\n');
+				 logga('Errore su mSql_conn '+cndx+'\n');			
+                } 
+				else {
+                  console.log(rowCount + ' rows');
+				  logga("Inserito "+rowCount+' record\n');
+				  connessioni[cndx].write('ack\r\n');
+				  logga('Ok insert su msQl_con'+cndx+'\n');
+                }
 						
-                    };
+        };
 		
 		var request = new Request(qr,callback);
        	connSql[cndx].execSql(request);	   
 }
 
-
-			
-		    
+	    
 var server = net.createServer(function(conn) {
 	
 	cliente = {};
@@ -107,7 +105,9 @@ var server = net.createServer(function(conn) {
 	cliente.port = conn.remotePort;
 	
 	if(connessioni.length+1 > connSql.length) {
-		conn.end('DB non pronto, riprova\r\n');
+		logga('Conn DB non pronta per conn'+connessioni.length+'\n');
+		console.log('Conn DB non pronta per conn'+connessioni.length);
+		conn.end('\5'); // send nack
 		return;
 	}
 	
@@ -126,7 +126,7 @@ var server = net.createServer(function(conn) {
 		else {
 			console.log("Current active connections count: "+count);
 			logga("Current active connections count: "+count+'\n');
-			conn.write('Ready\r\n');
+			//conn.write('Ready\r\n');
 		}
 	});
 	
@@ -171,42 +171,106 @@ var server = net.createServer(function(conn) {
 		});
 		
 		var datas = data.toString();
-		datas = datas.replace('\r','');
-		datas = datas.replace('\n','');
+		if(!checkRec(datas)) {
+			if(typeof callerID[i] == "undefined") {
+				logga('conn'+i+' Errore checksum, rispondo nack.');	
+				console.log('conn'+i+' Errore checksum, rispondo nack\n');	
+			}
+			else {
+				logga(callerID[i]+' Errore checksum, rispondo nack');	
+				console.log(callerID+' Errore checksum, rispondo nack\n');	
+			}
+			sendResp(5);
+			conndata[i] = '';
+			return;
+		}
+		
 		if (typeof conndata[i] == "undefined") {
 			conndata[i] = ""
 		}
-		conndata[i] += datas;
+		conndata[i] += datas;	
 		
-		// se pacchetti gestiti da fine record = EOT EOT
-		if(conndata[i].length > 3) {
-			if(data[data.length-2] == 4 && data[data.length-1] == 4) {
-				util.log("Bytes ricevuti "+conn._handle.onread.arguments['2']+" : "+conndata[i]);
-				logga('Bytes ricevuti '+conndata[i].length+' : '+conndata[i]+'\n');
-				conn.write('ack');
-				conndata.splice(i,1);
-				return;
-			}
-		}
-		// gestione ascii standard
+		
 		logga('conndata['+i+'] = '+conndata[i]+'\n');
-		if(conndata[i] == '') {
-			conn.write('Ready\r\n');
-			logga('Ready\n');
+		if(conndata[i].charCodeAt(3) == 0x01) {
+			conndata[i] = '';
+			logga(callerID+': ricevuto ack\n');
+			console.log(callerID+': ricevuto ack');
+			return;		
+		}
+		else if(conndata[i].charCodeAt(3) == 0x05) {
+			// nack a HANGUP chiudo conn
+			conn.end('\5'); // send nack e chiudi
+			logga(callerID+': ricevuto nack, chiudo connessione\n');
+			console.log(callerID+': ricevuto nack, chiudo connessione');
 			return;
 		}
-			
+		else if(conndata[i].charCodeAt(3) == 0x03 ||
+				conndata[i].charCodeAt(3) == 0x04) {
+					
+				callerID[i] = datas.substring(4,11);
+		}
+		
 		if(insertData(conndata[i])) {
-				conndata[i] = '';			
+				conndata[i] = '';
+				sendResp(1);
+				sendResp('HANGUP');			
 		}
 		else {
-				conn.write('nack\r\n');
+				sendResp(5); // send Nack
 				console.log('risposto nack a client');
 				logga('Risposto nack a client\n');
 		}
 	});
 	
+	
+	function checkRec(data) {
+		var crc = 3;
+		for(var i=0;i<data.length;i++) {
+			crc ^= data.charCodeAt(i);
+		}
+		if (crc == 0) {
+			return true
+		}
+		return false;
+	}
+	
+
+	function sendResp(answ) {
+		var crc = 0;
+		var stx = 2;
+		var etx = 3;
+		var INFO = answ;
+		var len = INFO.length+5;
+		var buf = new Buffer(len);
+		var lh = Math.floor(len/256);
+		var ll = len - 256*lh;
+		buf[0] = stx;
+		crc ^= buf[0];
+		buf[1] = lh;
+		crc ^= buf[1];
+		buf[2] = ll;
+		crc ^= buf[2];
+		for(var i=0;i<INFO.length;i++) {
+			buf[3+i] = INFO.charCodeAt(i);
+			crc ^= buf[3+i];
+		}
+		buf[3+i] = crc;
+		buf[4+i] = etx;
+		if(answ == 1) {
+			answ = 'Ack';
+		}
+		else if(answ == 5) {
+			answ = 'Nack';
+		}
+		console.log("invio risposta: "+answ+' '+buf.toString('hex'));
+		logga("invio risposta: "+answ+' '+buf.toString('hex')+'\n');
+		conn.write(buf.toString('utf8'));		
+	}
+	
+	
 	function insertData(dats) {
+		/***s
 		var righe = dats.split('&');
 		var row;
 		var qr = "INSERT into plots values(";
@@ -237,6 +301,7 @@ var server = net.createServer(function(conn) {
 		console.log('qr= '+qr);
 		logga('qr= '+qr+'\n');
 		caricaRecord(qr,conndx);
+		***/
 		return true;
 	}
 	
