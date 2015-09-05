@@ -208,9 +208,9 @@ var server = net.createServer(function(conn) {
 		}
 		else if(conndata[i].charCodeAt(10) == 0x03 ||
 				conndata[i].charCodeAt(10) == 0x04) {
-				
-				callerID[i] = conndata[i].substring(3,10);
+			callerID[i] = conndata[i].substring(3,10);
 		}
+		
 		
 		if(insertData(conndata[i])) {
 				conndata[i] = '';

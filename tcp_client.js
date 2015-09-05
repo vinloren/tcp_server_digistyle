@@ -47,7 +47,9 @@ client.connect (port,host, function () {
 	util.log('connected to server');
 	logga(myId+' Connesso a server\n');
 	// prepara e invia pacchetto dati
-	client.write(prepData(3));
+	var rnd = Math.floor(Math.random()*2);
+	//console.log("rnd="+rnd);
+	client.write(prepData(3+rnd));
 	connected = true;
 });
 
@@ -59,6 +61,10 @@ function prepData(type) {
 	var etx = 3
 	var date = new Date();
 	var rtc = [];
+	var sensSn = ['7002141','7002142','7002143','7002144','7002145',
+				  '7002146','7002147','7002148','7002149','7002150',
+				  '6013001','6013002','6013003','6013004','6013005',
+				  '6013006','6013007','6013008','6013009','6013010'];
 	rtc[0] = date.getHours();
 	rtc[1] = date.getMinutes();
 	rtc[2] = date.getSeconds();
@@ -133,9 +139,10 @@ function prepData(type) {
 	senfumo[22] = 9;  	// mese
 	senfumo[23] = 15 	// anno evt
 	var len = 7+rtc.length+myId.length+pwfail.length+sensor.length+senfumo.length;
-	var buff = new Buffer(len);
+	var buff;
 	var lh,ll,i,p;
 	if(type == 3) {
+		buff = new Buffer(len);
 		buff[0] = stx;
 		crc ^= stx;
 		lh = Math.floor(len/256);
@@ -169,6 +176,33 @@ function prepData(type) {
 		}
 		buff[i+5+p+p1+q+n] = crc;
 		buff[i+6+p+p1+q+n] = etx;
+	}
+	else if(type == 4) {
+		len = 27; // stx-lh-ll-myID(7)-04-rtc(7)-sensS/n(7)-crc-etx
+		buff = new Buffer(len);
+		buff[0] = stx;
+		crc ^= buff[0];
+		buff[1] = 0;
+		buff[2] = len;
+		crc ^= buff[2];
+		for(i=0;i<7;i++) {
+			buff[3+i] = myId.charCodeAt(i);
+			crc ^= buff[3+i];
+		}
+		buff[3+i] = 4;
+		crc ^= 4;
+		for(p=0;p<rtc.length;p++) {
+			buff[4+i+p] =  rtc[p];
+			crc ^= rtc[p];
+		}
+		// prendi un S/n sensore fra i 20 prestabiliti
+		var sndx = Math.floor(Math.random()*20);
+		for(var p1=0;p1<7;p1++) {
+			buff[4+i+p+p1] = sensSn[sndx].charCodeAt(p1);
+			crc ^= buff[4+i+p+p1];
+		}
+		buff[4+i+p+p1] = crc^etx;
+		buff[5+i+p+p1] = etx;
 	}
 	
 	lastrec = buff.toString('utf8');
