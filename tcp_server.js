@@ -1,5 +1,7 @@
 var net = require('net');
 var util = require('util');
+var process = require('process');
+var Buffer = require('Buffer');
 var fs = require('fs');
 var moment = require("moment");
 var writeStream = fs.createWriteStream('./tcpserver.log',
@@ -238,7 +240,6 @@ var server = net.createServer(function(conn) {
 		var crc = 0;
 		var stx = 2;
 		var etx = 3;
-		var INFO = answ;
 		var len = 6;
 		var buf = new Buffer(len);
 		var lh = Math.floor(len/256);

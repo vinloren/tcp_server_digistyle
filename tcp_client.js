@@ -1,6 +1,8 @@
 var net = require('net');
 var client = new net.Socket();
 var util = require('util');
+var process = require('process');
+var Buffer = require('Buffer');
 var fs = require('fs');
 var moment = require("moment");
 var writeStream = fs.createWriteStream('./tcpclient.log',
@@ -290,7 +292,7 @@ client.on('data',function(data) {
 		}
 		else if(lastrcv != '') {
 			// comletiamo msg incompleto
-			latsrcv += asc;
+			lastrcv += asc;
 			len = lastrcv.charCodeAt(1)+256+lastrcv.charCodeat(2);
 			if(lastrcv.length < len) {
 				util.log(myId+': Ricevuto msg incompleto, aspetto concludione.');
@@ -360,7 +362,7 @@ client.on('data',function(data) {
 });
 
 client.on('error', function(err) {
-	utile.log(err.toString());
+	util.log(err.toString());
 	logga(err.toString()+'\n');
 	process.exit();	
 });
