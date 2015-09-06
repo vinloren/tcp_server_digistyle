@@ -65,6 +65,10 @@ function prepData(type) {
 				  '7002146','7002147','7002148','7002149','7002150',
 				  '6013001','6013002','6013003','6013004','6013005',
 				  '6013006','6013007','6013008','6013009','6013010'];
+	var fumoSn = ['8013101','8013102','8013103','8013104','8013105',
+				  '8013106','8013107','8013108','8013109','8013110',
+				  '8013111','8013112','8013131','8013114','8013115',
+				  '8013116','8013117','8013118','8013119','8013120'];
 	rtc[0] = date.getHours();
 	rtc[1] = date.getMinutes();
 	rtc[2] = date.getSeconds();
@@ -91,13 +95,10 @@ function prepData(type) {
 	var sensor = [];
 	sensor[0] = 0; // sensore acqua
 	sensor[1] = 0;
-	sensor[2] = '7'; // s/n sensore 7 bytes ascii
-	sensor[3] = '0'; // s/n sensore 7 bytes ascii
-	sensor[4] = '0'; // s/n sensore 7 bytes ascii
-	sensor[5] = '1'; // s/n sensore 7 bytes ascii
-	sensor[6] = '0'; // s/n sensore 7 bytes ascii
-	sensor[7] = '0'; // s/n sensore 7 bytes ascii
-	sensor[8] = '1'; // s/n sensore 7 bytes ascii
+	var rn = Math.floor(Math.random()*20);
+	for(var i=0;i<7;i++) {
+		sensor[i+2] = sensSn[rn].charCodeAt(i);
+	}
 	sensor[9] = 1;	 // batteria high
 	sensor[10] = 15; // ora ultimo test
 	sensor[11] = 30; // minuto
@@ -114,19 +115,15 @@ function prepData(type) {
 	sensor[22] = 9;  // mese
 	sensor[23] = 15  // anno evt
 	var senfumo = [];
-	senfumo[0] = 0;
+	senfumo[0] = 0;  // sensore fumo
 	senfumo[1] = 1;
-	senfumo[2] = '8'; // s/n sensore 7 bytes ascii
-	senfumo[3] = '0'; // s/n sensore 7 bytes ascii
-	senfumo[4] = '0'; // s/n sensore 7 bytes ascii
-	senfumo[5] = '1'; // s/n sensore 7 bytes ascii
-	senfumo[6] = '0'; // s/n sensore 7 bytes ascii
-	senfumo[7] = '0'; // s/n sensore 7 bytes ascii
-	senfumo[8] = '2'; // s/n sensore 7 bytes ascii
-	senfumo[9] = 2; // batteria medium
-	senfumo[10] = 15; // ora ultimo test
-	senfumo[11] = 30; // minuto
-	senfumo[12] = 22; // secondi
+	for(var i=0;i<7;i++) {
+		senfumo[i+2] = fumoSn[rn].charCodeAt(i);
+	}
+	senfumo[9] = 2; 	// batteria medium
+	senfumo[10] = 15; 	// ora ultimo test
+	senfumo[11] = 30; 	// minuto
+	senfumo[12] = 22; 	// secondi
 	senfumo[13] = ';';
 	senfumo[14] = 4;	// giorno
 	senfumo[15] = 9;  	// mese
@@ -140,7 +137,7 @@ function prepData(type) {
 	senfumo[23] = 15 	// anno evt
 	var len = 7+rtc.length+myId.length+pwfail.length+sensor.length+senfumo.length;
 	var buff;
-	var lh,ll,i,p;
+	var lh,ll,p;
 	if(type == 3) {
 		buff = new Buffer(len);
 		buff[0] = stx;

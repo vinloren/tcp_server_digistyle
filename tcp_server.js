@@ -152,10 +152,11 @@ var server = net.createServer(function(conn) {
 	});
 	
 	conn.on('data', function (data) {
-		var now = moment(new Date());
-		now = now.format("DD MMM YYYY HH:MM:ss.SSS");
-		
-		util.log(now+' '+data + ' from ' + 
+		var len = data.length;
+		if(len > 12) {
+			len = 12;
+		}
+		util.log(data.toString('hex').substring(0,2*len) + ' from ' + 
 			conn.remoteAddress + ' ' +
 			conn.remotePort);
 		
