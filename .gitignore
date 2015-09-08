@@ -3,6 +3,10 @@ logs
 *.log
 npm-debug.log*
 
+# sql scripts
+sqlscript
+*.sql
+
 # Runtime data
 pids
 *.pid

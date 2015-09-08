@@ -60,7 +60,7 @@ function prepData(type) {
 	var crc = 3;
 	var etx = 3
 	var date = new Date();
-	var rtc = [];
+	var rtc = [];	
 	var sensSn = ['7002141','7002142','7002143','7002144','7002145',
 				  '7002146','7002147','7002148','7002149','7002150',
 				  '6013001','6013002','6013003','6013004','6013005',
@@ -73,9 +73,10 @@ function prepData(type) {
 	rtc[1] = date.getMinutes();
 	rtc[2] = date.getSeconds();
 	rtc[3] = ';';
-	rtc[4] = date.getDay();
+	rtc[4] = date.getDate();
 	rtc[5] = date.getMonth();
 	rtc[6] = date.getFullYear()-2000;
+	var tipal = Math.floor(Math.random()*3);
 	var aas = 1; // anomalia assenza sensori 0=nessun sens. affiliato
 				 // 1=tutti sensori affiliati 2=uno+ sensori non visibili
 	var pwfail = [];
@@ -135,7 +136,7 @@ function prepData(type) {
 	senfumo[21] = 4;	// giorno
 	senfumo[22] = 9;  	// mese
 	senfumo[23] = 15 	// anno evt
-	var len = 7+rtc.length+myId.length+pwfail.length+sensor.length+senfumo.length;
+	var len = 8+rtc.length+myId.length+pwfail.length+sensor.length+senfumo.length;
 	var buff;
 	var lh,ll,p;
 	if(type == 3) {
@@ -159,20 +160,22 @@ function prepData(type) {
 		}
 		buff[i+4+p] = aas;
 		crc ^= aas;
+		buff[i+5+p] = tipal; // tipo alimentazione
+		crc ^= tipal;		 // 0=rete 1=batt. 2= batt. in esaur.
 		for(var p1=0;p1<pwfail.length;p1++) {
-			buff[i+5+p+p1] = pwfail[p1];
+			buff[i+6+p+p1] = pwfail[p1];
 			crc ^= pwfail[p1];
 		}
 		for(var q=0;q<sensor.length;q++) {
-			buff[i+5+p+p1+q] = sensor[q];
+			buff[i+6+p+p1+q] = sensor[q];
 			crc ^= sensor[q];
 		}
 		for(var n=0;n<senfumo.length;n++) {
-			buff[i+5+p+p1+q+n] = senfumo[n];
+			buff[i+6+p+p1+q+n] = senfumo[n];
 			crc ^= senfumo[n];
 		}
-		buff[i+5+p+p1+q+n] = crc;
-		buff[i+6+p+p1+q+n] = etx;
+		buff[i+6+p+p1+q+n] = crc;
+		buff[i+7+p+p1+q+n] = etx;
 	}
 	else if(type == 4) {
 		len = 27; // stx-lh-ll-myID(7)-04-rtc(7)-sensS/n(7)-crc-etx
@@ -314,6 +317,7 @@ client.on('data',function(data) {
 			logga(myId+': Manca stx in messaggio, rispondo Nack\n');
 			reccnt++;
 			if(reccnt>2) {
+				logga(myId+' Chiudo socket\n');
 				client.destroy(); // chiudo socket
 			}
 			else {
@@ -382,6 +386,7 @@ client.on('data',function(data) {
 					logga(myId+': Manca stx in messaggio, rispondo Nack\n');
 					reccnt++;
 					if(reccnt>2) {
+						logga(myId+' Chiudo socket\n');
 						client.destroy(); 	// chiudo socket
 					}
 					else {
@@ -400,6 +405,6 @@ client.on('error', function(err) {
 
 client.on('close',function() {
 	util.log('Connesione chiusa');
-	logga('Connessione chiusa\n');
+	logga(myId+' Connessione chiusa\n');
 	process.exit();
 });
