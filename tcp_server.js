@@ -366,8 +366,7 @@ var carica9 = function caricaRecord(qr,sqlobj,conx) {
 				  conx.write(hangup);
 				  clearBusy(sqlobj);
 				  logga(conx.remotePort+': Ok insert su msQl_con9\n');
-                }
-						
+                }				
         };
 		var request = new Request(qr,callback);
 		setBusy(sqlobj);
@@ -445,7 +444,6 @@ var server = net.createServer(function(conn) {
 			util.log("Current active connections count: "+count);
 			logga("Current active connections count: "+count+'\n');
 			for(var i=0;i<count;i++) {
-				var tcpsqlObj = {};
 				if(typeof connessioni[i].remotePort != 'undefined') {
 					logga('Conn'+i+': '+connessioni[i].remotePort+'\n');
 				}
@@ -479,8 +477,8 @@ var server = net.createServer(function(conn) {
 	// se il client chiude bruscamente si
 	// entra qui piuttosto che a on close
 	conn.on('error', function (err) {
-		logga(err.toString()+'\n');
-		util.log(err.toString());	
+		logga(err+'\n');
+		util.log(err);
 	});
 	
 	conn.on('data', function (data) {
@@ -549,11 +547,6 @@ var server = net.createServer(function(conn) {
 		
 		if(insertData(conndata[i],tipCall)) {
 				conndata[i] = '';
-				// in attesa di completare gestione alive
-				if(tipCall == 3) {
-					sendResp(1); // send Ack
-					sendResp(6); // hangup
-				}	
 		}
 		else {
 				sendResp(5); // send Nack
@@ -599,38 +592,101 @@ var server = net.createServer(function(conn) {
 	
 	
 	function insertData(dats,tipCall) {
-		
+		var hbsn;
+		var rtchb;
 		var qr = "INSERT into ";
 		var starts = 3; // inizio dati in dats string
 		if(tipCall == 4) { // chiamata di allarme
 			qr += 'alarm (boxId,rtc,sensSn) values(';	
-			var hbsn = dats.substring(starts,starts+7);  // 7 char ascci hb S/n
+			hbsn = dats.substring(starts,starts+7);  // 7 char ascci hb S/n
 			qr += hbsn+',';
 			starts += 8; // salto tipo conn (alive o alarm)
-			var rtchb = dats.substring(starts,starts+7); // rtc homebox
+			rtchb = dats.substring(starts,starts+7); // rtc homebox
 			qr += "'"+getRtcDate(rtchb)+"',";
 			starts += 7;
 			qr += dats.substring(starts,starts+7)+');'	 // Sn sensore in allarme
 			logga('conn'+conndx+' qr= '+qr+'\n');
-			
-			// cerca prima connSql libera
-			//csql.conn = connection;
-			//csql.busy = false;
-			var i;
-			for(i=0;i<connSql.length;i++) {
-				if(!connSql[i].busy) {
-					break;
-				}
+		} 
+		else if(tipCall == 3) {	
+			var qrhead;
+			qr += 'alive (boxId,rtc,tipal,aas,pwfth,fail_datetime,durata,';
+			qr += 'tipsens,sensSn,carbatt,datetest,datecomm) values(';
+			hbsn = dats.substring(starts,starts+7);  // 7 char ascci hb S/n
+			qr += hbsn+',';
+			qrhead = hbsn+',';
+			starts += 8; // salto tipo conn (alive o alarm)
+			rtchb = dats.substring(starts,starts+8); // rtc homebox
+			qr += "'"+getRtcDate(rtchb)+"',";
+			qrhead += "'"+getRtcDate(rtchb)+"',";
+			starts += 7; // 
+			qr += dats.substring(starts,starts+1).charCodeAt(0)+','; // tipal
+			qrhead +=  dats.substring(starts,starts+1).charCodeAt(0)+',';
+			starts++;
+			qr += dats.substring(starts,starts+1).charCodeAt(0)+','; // aas
+			qrhead += dats.substring(starts,starts+1).charCodeAt(0)+',';
+			starts++;
+			qr += dats.substring(starts,starts+1).charCodeAt(0)+','; // pwfth
+			qrhead += dats.substring(starts,starts+1).charCodeAt(0)+',';			
+			starts++;
+			rtchb = dats.substring(starts,starts+7)+','; // fail_dateteime
+			qr += "'"+getRtcDate(rtchb)+"',";
+			qrhead += "'"+getRtcDate(rtchb)+"',";
+			starts += 8; //salto ; prima di durata
+			var dura = dats.substring(starts,starts+2);
+			qr += (dura.charCodeAt(0)*16+dura.charCodeAt(1))+','; // durata
+			qrhead += (dura.charCodeAt(0)*16+dura.charCodeAt(1))+',';
+			starts += 2;
+			// questa sequenza può essere ripetuta i8n funzione della
+			// presenza di più sensori. Minumo 2: 1 acqua + 1 fumo
+			var tipsens = dats.substring(starts,starts+2);	// tipsens
+			qr += (tipsens.charCodeAt(0)*16+tipsens.charCodeAt(1))+',';
+			starts += 2;
+			qr += dats.substring(starts,starts+7)+','; // sensSn
+			//util.log('Sn='+dats.substring(starts,starts+7));
+			starts += 7;
+			qr += dats.substring(starts,starts+1).charCodeAt(0)+','; // carbatt
+			starts++;
+			rtchb = dats.substring(starts,starts+7); // datetest
+			qr += "'"+getRtcDate(rtchb)+"',";
+			starts +=7;
+			rtchb = dats.substring(starts,starts+7); // datecomm
+			qr += "'"+getRtcDate(rtchb)+"')";
+			starts += 7;
+			while((starts+2) < dats.length) {
+				qr += ',('+qrhead;
+				tipsens = dats.substring(starts,starts+2);	// tipsens
+				qr += (tipsens.charCodeAt(0)*16+tipsens.charCodeAt(1))+',';
+				starts += 2;
+				qr += dats.substring(starts,starts+7)+','; // sensSn
+				starts += 7;
+				qr += dats.substring(starts,starts+1).charCodeAt(0)+','; // carbatt
+				starts++;
+				rtchb = dats.substring(starts,starts+7); // datetest
+				qr += "'"+getRtcDate(rtchb)+"',";
+				starts +=7;
+				rtchb = dats.substring(starts,starts+7); // datecomm
+				qr += "'"+getRtcDate(rtchb)+"')";
+				starts += 7;	
 			}
-			
-			if(i == connSql.length) {
+			logga('conn'+conndx+' qr= '+qr+'\n');
+		}
+		// cerca prima connSql libera
+		// csql.conn = connection;
+		// csql.busy = false;
+		var i;
+		for(i=0;i<connSql.length;i++) {
+			if(!connSql[i].busy) {
+				break;
+			}
+		}
+		
+		if(i == connSql.length) {
 				// tutte le conn sql occupate, rispondi nack
 				logga('(insertData) sql conns tutte occupate, rispondo nack\n');
 				return false;
-			}
+		}
 			
-			switch(conndx) {
-				
+		switch(conndx) {	
 				case 0:
 					util.log("Carico0");
 					carica0(qr,connSql[i],connessioni[conndx]);
@@ -671,8 +727,6 @@ var server = net.createServer(function(conn) {
 					util.log("Carico9");
 					carica9(qr,connSql[i],connessioni[conndx]);
 					break;
-			}
-			
 		}
 		return true;
 	}
@@ -683,7 +737,7 @@ var server = net.createServer(function(conn) {
 		logga('conn port: '+conn._peername.port+' ha chiuso conn.\n');
 		var i=0;
 		connessioni.forEach(function() {
-			util.log('conn'+i+': '+connessioni[i].remotePort);
+			//util.log('conn'+i+': '+connessioni[i].remotePort);
 			if(typeof connessioni[i].remotePort == 'undefined')
 				return;
 			else

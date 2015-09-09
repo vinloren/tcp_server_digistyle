@@ -60,15 +60,24 @@ function prepData(type) {
 	var crc = 3;
 	var etx = 3
 	var date = new Date();
+	var time = date.getTime();
+	var pwFailDate = new Date(time-4*89900000);
+	var lastCommDate = new Date(time-2*86400);
+	var sensDate = new Date(time-3*86400000); // vado indietro 3gg
+	var fumoDate = new Date(time-2*89522000); // vado indietro circa 2gg
 	var rtc = [];	
 	var sensSn = ['7002141','7002142','7002143','7002144','7002145',
 				  '7002146','7002147','7002148','7002149','7002150',
 				  '6013001','6013002','6013003','6013004','6013005',
-				  '6013006','6013007','6013008','6013009','6013010'];
+				  '6013006','6013007','6013008','6013009','6013010',
+				  '6013011','6013012','6013013','6013014','6013015',
+				  '6013016','6013017','6013018','6013019','6013020'];
 	var fumoSn = ['8013101','8013102','8013103','8013104','8013105',
 				  '8013106','8013107','8013108','8013109','8013110',
 				  '8013111','8013112','8013131','8013114','8013115',
-				  '8013116','8013117','8013118','8013119','8013120'];
+				  '8013116','8013117','8013118','8013119','8013120',
+				  '8012121','8012122','8012123','8012124','8012125',
+				  '8012126','8012127','8012128','8012129','8012130'];
 	rtc[0] = date.getHours();
 	rtc[1] = date.getMinutes();
 	rtc[2] = date.getSeconds();
@@ -83,59 +92,59 @@ function prepData(type) {
 	pwfail[0] = 0; 	// 0=nessun superamento soglia 1=superamento
 					// in caso 1 segue rtc+;+2 bytes durata in multipli di
 					// 100mS
-	pwfail[1] = 15; // ora evento
-	pwfail[2] = 30; // minuto evt
-	pwfail[3] = 22;	// secondi
+	pwfail[1] = pwFailDate.getHours();   // ora evento
+	pwfail[2] = pwFailDate.getMinutes(); // minuto evt
+	pwfail[3] = pwFailDate.getSeconds(); // secondi
 	pwfail[4] = ';';
-	pwfail[5] = 4;	// giorno
-	pwfail[6] = 9;  // mese
-	pwfail[7] = 15  // anno evt
+	pwfail[5] = pwFailDate.getDate();    // giorno
+	pwfail[6] = pwFailDate.getMonth();   // mese settembre
+	pwfail[7] = pwFailDate.getFullYear()-2000; // anno evt
 	pwfail[8] = ';'
-	pwfail[9] = 0;  // fail non registrata
-	pwfail[10] = 0;  // fail dutata 00 ovvero non presente
+	pwfail[9] = 0; 	// fail dutata 00 ovvero non presente
+	pwfail[10] = 0; // fail dutata 00
 	var sensor = [];
-	sensor[0] = 0; // sensore acqua
+	sensor[0] = 0; 	// sensore acqua: 0000 fumo 0001
 	sensor[1] = 0;
-	var rn = Math.floor(Math.random()*20);
+	var rn = Math.floor(Math.random()*30);
 	for(var i=0;i<7;i++) {
 		sensor[i+2] = sensSn[rn].charCodeAt(i);
 	}
 	sensor[9] = 1;	 // batteria high
-	sensor[10] = 15; // ora ultimo test
-	sensor[11] = 30; // minuto
-	sensor[12] = 22; // secondi
+	sensor[10] = sensDate.getHours(); 	// ora ultimo test
+	sensor[11] = sensDate.getMinutes(); // minuto
+	sensor[12] = sensDate.getSeconds(); // secondi
 	sensor[13] = ';';
-	sensor[14] = 4;	 // giorno
-	sensor[15] = 9;  // mese
-	sensor[16] = 15  // anno evt
-	sensor[17] = 15; // ora ultima comunicazione
-	sensor[18] = 41; // minuto
-	sensor[19] = 16; // secondi
+	sensor[14] = sensDate.getDate(); 	// giorno
+	sensor[15] = sensDate.getMonth();	// mese settembre
+	sensor[16] = sensDate.getFullYear()-2000; // anno evt
+	sensor[17] = lastCommDate.getHours();   // ora ultima comunicazione
+	sensor[18] = lastCommDate.getMinutes(); // minuto
+	sensor[19] = lastCommDate.getSeconds(); // secondi
 	sensor[20] = ';';
-	sensor[21] = 4;	 // giorno
-	sensor[22] = 9;  // mese
-	sensor[23] = 15  // anno evt
+	sensor[21] = lastCommDate.getDate(); 	// giorno();
+	sensor[22] = lastCommDate.getMonth();   // mese
+	sensor[23] = lastCommDate.getFullYear()-2000; // anno evt
 	var senfumo = [];
-	senfumo[0] = 0;  // sensore fumo
+	senfumo[0] = 0;  // sensore fumo 0001
 	senfumo[1] = 1;
 	for(var i=0;i<7;i++) {
 		senfumo[i+2] = fumoSn[rn].charCodeAt(i);
 	}
 	senfumo[9] = 2; 	// batteria medium
-	senfumo[10] = 15; 	// ora ultimo test
-	senfumo[11] = 30; 	// minuto
-	senfumo[12] = 22; 	// secondi
+	senfumo[10] = fumoDate.getHours(); 		// ora ultimo test
+	senfumo[11] = fumoDate.getMinutes(); 	// minuto
+	senfumo[12] = fumoDate.getSeconds();	// secondi
 	senfumo[13] = ';';
-	senfumo[14] = 4;	// giorno
-	senfumo[15] = 9;  	// mese
-	senfumo[16] = 15  	// anno evt
-	senfumo[17] = 16; 	// ora ultima comunicazione
-	senfumo[18] = 41; 	// minuto
-	senfumo[19] = 16; 	// secondi
+	senfumo[14] = fumoDate.getDate();		// giorno
+	senfumo[15] = fumoDate.getMonth();	 	// mese settembre
+	senfumo[16] = fumoDate.getFullYear()-2000;	// anno evt
+	senfumo[17] = lastCommDate.getHours(); 	// ora ultima comunicazione
+	senfumo[18] = lastCommDate.getMinutes();// minuto
+	senfumo[19] = lastCommDate.getSeconds();// secondi
 	senfumo[20] = ';';
-	senfumo[21] = 4;	// giorno
-	senfumo[22] = 9;  	// mese
-	senfumo[23] = 15 	// anno evt
+	senfumo[21] = lastCommDate.getDate();	// giorno
+	senfumo[22] = lastCommDate.getMonth(); 	// mese
+	senfumo[23] = lastCommDate.getFullYear()-2000; // anno evt
 	var len = 8+rtc.length+myId.length+pwfail.length+sensor.length+senfumo.length;
 	var buff;
 	var lh,ll,p;
