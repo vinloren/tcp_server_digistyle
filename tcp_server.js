@@ -104,6 +104,38 @@ function clearBusy(obj) {
 	connSql[i].busy = false;
 }
 
+var carica = [];
+
+for (var i=0;i<MAXCONN;i++) {
+	carica[i] = " (qr,sqlobj,conx) { "+
+		"var csql = sqlobj.conn;"+
+       	"var callback = function(err, rowCount) { "+
+		"try { "+				
+       	"	if (err) { "+
+			"	    clearBusy(sqlobj); "+
+            "     	util.log(conx.remotePort+': '+err); "+
+			"	 	var nack = getMsg(5); "+
+				" 	conx.write(nack); "+	
+				" 	logga(conx.remoteport+\": \"+err.toString()+\"\\n\"); } "+
+				"else { "+
+				"	clearBusy(sqlobj); "+
+                "  	util.log(conx.remotePort+': '+ rowCount + ' rows');"+
+				"   logga('Inserito '+ rowCount + \' record\'"+"+'\\n');"+
+				"   var ack = getMsg(1); "+
+				"  	conx.write(ack); "+
+				"  	var hangup = getMsg(6); "+
+				"  	conx.write(hangup); "+
+				"  	logga(conx.remotePort+\": Ok insert su msQl_con"+i+"\"); }"+				
+        "	}	catch(xcp) {"+
+			"	util.log(\"sql Ok, conn"+i+"\" +\" remote socket caduto.\");"+	
+			"	logga(\"sql Ok, conn"+i+"\"+\" remote socket caduto.\\n\");"+"}"+
+	"	}; "+
+	"	var request = new Request(qr,callback); "+
+	"	setBusy(sqlobj); "+
+    "  	csql.execSql(request);}";
+}	
+
+
 
 var carica0 = function caricaRecord(qr,sqlobj,conx) {  
 		var csql = sqlobj.conn;
@@ -119,7 +151,7 @@ var carica0 = function caricaRecord(qr,sqlobj,conx) {
 				else {
 					clearBusy(sqlobj);
                   	util.log(conx.remotePort+': '+rowCount + ' rows');
-				  	logga("Inserito "+rowCount+' record\n');
+				  	logga('Inserito '+rowCount+' record\n');
 				  	var ack = getMsg(1);
 				  	conx.write(ack);
 				  	var hangup = getMsg(6);
@@ -773,49 +805,11 @@ var server = net.createServer(function(conn) {
 				logga('(insertData) sql conns tutte occupate, rispondo nack\n');
 				return false;
 		}
-			
-		switch(conndx) {	
-				case 0:
-					util.log("Carico0");
-					carica0(qr,connSql[i],connessioni[conndx]);
-					break;
-				case 1:
-					util.log("Carico1");
-					carica1(qr,connSql[i],connessioni[conndx]);
-					break;
-				case 2:
-					util.log("Carico2");
-					carica2(qr,connSql[i],connessioni[conndx]);
-					break;
-				case 3:
-					util.log("Carico3");
-					carica3(qr,connSql[i],connessioni[conndx]);
-					break;
-				case 4:
-					util.log("Carico4");
-					carica4(qr,connSql[i],connessioni[conndx]);
-					break;
-				case 5:
-					util.log("Carico5");
-					carica5(qr,connSql[i],connessioni[conndx]);
-					break;
-				case 6:
-					util.log("Carico6");
-					carica6(qr,connSql[i],connessioni[conndx]);
-					break;
-				case 7:
-					util.log("Carico7");
-					carica7(qr,connSql[i],connessioni[conndx]);
-					break;
-				case 8:
-					util.log("Carico8");
-					carica8(qr,connSql[i],connessioni[conndx]);
-					break;
-				case 9:
-					util.log("Carico9");
-					carica9(qr,connSql[i],connessioni[conndx]);
-					break;
-		}
+		
+		util.log('carico'+conndx); 
+		eval("function load "+carica[conndx]);
+		load(qr,connSql[i],connessioni[conndx]);
+		
 		return true;
 	}
 	
