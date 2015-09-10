@@ -20,11 +20,10 @@ var myId = '5010001';
 var idbox= 'hbox01'
 var port = '8124';
 var host = 'localhost';
-var connected = false;	
-var acked = false;
 var reccnt = 0;		
 var lastrec = '';
 var lastrcv = '';
+
 process.argv.forEach(function (val, index, array) {
 	switch(index) {
 		case 2:
@@ -48,9 +47,15 @@ client.connect (port,host, function () {
 	logga(myId+' Connesso a server\n');
 	// prepara e invia pacchetto dati
 	var rnd = Math.floor(Math.random()*2);
-	//console.log("rnd="+rnd);
-	client.write(prepData(3+rnd));
-	connected = true;
+	client.write(prepData(3+rnd));	// scegli random conn alarm o conn alive
+	
+	/** per test caduta brusca conn lato clieln
+	if(Math.floor(Math.random()*3)==2) {
+			logga("Chiudo client in modo brusco..\n");
+			process.exit();
+			return;
+	}
+	**/	
 });
 
 
@@ -318,7 +323,13 @@ client.on('data',function(data) {
 			util.log(myId+' ricevuto nack a connect.');
 			return;
 		}
-		
+		/** per test chiusura brusca client effetto su server 
+		if(Math.floor(Math.random()*3)==2) {
+			logga("Chiudo client in modo brusco..\n");
+			process.exit();
+			return;
+		}
+		**/
 		// controlla se per caso data.len < > = messaggio singolo
 		if(data[0] != stx && lastrcv == '') {
 			// ricevuto fuffa, chiudi socket o nack se non coda di msg incompleto
