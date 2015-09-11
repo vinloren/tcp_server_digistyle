@@ -49,7 +49,7 @@ client.connect (port,host, function () {
 	var rnd = Math.floor(Math.random()*2);
 	client.write(prepData(3+rnd));	// scegli random conn alarm o conn alive
 	
-	/** per test caduta brusca conn lato clieln
+	/** per test caduta brusca conn lato client 
 	if(Math.floor(Math.random()*3)==2) {
 			logga("Chiudo client in modo brusco..\n");
 			process.exit();
@@ -323,7 +323,7 @@ client.on('data',function(data) {
 			util.log(myId+' ricevuto nack a connect.');
 			return;
 		}
-		/** per test chiusura brusca client effetto su server 
+		/** test chiusura brusca client effetto su server 
 		if(Math.floor(Math.random()*3)==2) {
 			logga("Chiudo client in modo brusco..\n");
 			process.exit();

@@ -10,12 +10,12 @@ sessione.
 
 Soluzione con una singola connessione a DB mSql
 -----------------------------------------------
-Una via d'uscita sarebbe quella di accodare le richieste ricevute in un array che poi viene scaricato (le ralative
-insert accumulate eseguite sequenzialmente in modo asincrono rispetto alle richieste ricevute) periodicamente 
-via setTimeout con cadenza di 500mS (ad esempio). Questa soluzione però non sarebbe in grado di informare 
-contestualmente il client sull'esito della sua richiesta (verrebbe risposto 'ack' subito ad ogni ricezione) il che 
-non mi pare una bella trovata. La soluzione adottata in questa applicazione è quindi quella di attribuire una 
-propria connessione mSql a ciascuna connessione TCP aperta.
+Una via d'uscita sarebbe quella di accodare le richieste ricevute in un array che poi viene scaricato 
+(le ralative insert accumulate eseguite sequenzialmente in modo asincrono rispetto alle richieste ricevute) 
+periodicamente via setTimeout con cadenza di 500mS (ad esempio). Questa soluzione però non sarebbe in grado di 
+informare contestualmente il client sull'esito della sua richiesta (verrebbe risposto 'ack' subito ad ogni 
+ricezione) il che non mi pare una bella trovata. La soluzione adottata in questa applicazione è quindi quella 
+di attribuire una propria connessione mSql a ciascuna connessione TCP aperta.
 
 Soluzione con una conn mSql per ciascuna conn Tcp:
 --------------------------------------------------
@@ -27,43 +27,63 @@ asincrone nella connessione TCP con funzioni asincrone nella connessione mSql se
 Ecco allora che risulta più agevole attribuire una connessione mSql a ciascuna connessione TCP attiva e poi 
 fare in modo che il server possa notificare con 'ack' l'avvenuta insert al client che l'aveva richiesta. 
 
-Prevediamo allora il massimo numero di connessioni concorrenti prevedibili e apriamo una conn_mSql per ciascuna 
+Prevediamo allora il massimo numero di connessioni concorrenti e apriamo una conn_mSql per ciascuna 
 di esse. Data la natura asincrona di node.js può capitare all'avvio di tcp_server.js che le n connessioni
 previste col DB non siano ancora state attivate mentre arriva una ennesima cnnessione TCP di numero maggiore
 della massima conn_mSql attivata. In questo caso, come pure nel caso di ennesima connessione TCP > del max
-numero previsto, tcp_server.js risponde con 'DB non pronto, riprova\r\n' chiudendo subito il tcp socket relativo:
+numero previsto, tcp_server.js risponde con 'DB non pronto, riprova\r\n' chiudendo subito il tcp socket 
+relativo:
 	if(connessioni.length+1 > connSql.length) {
 		conn.write('DB non pronto, riprova\r\n');
 		conn.close();
 		return;
 	}
 Se invece la conn TCP trova una corrispondente conn_mSql attivata allora la risposta al client sarà:
-conn.write('Ready\r\n'); e il client potrà inoltrare il primo invio dati.
+conn.write('Ready\r\n'); e il client potrà inoltrare il primo invio dati. La connessione mSql viene associata
+alla connessione Tcp richiedente in modo dinamico ovvero viene presa la prima conn mSql libera dall'array
+che le contiene tutte. L'array contiene MAXCONN oggetti dove obj.conn è la conn mSql, obj.busy è un boolean 
+false per conn libera, true per occupata.
 
-Per quanto concerne la gestione di fine inserimento dati in DB e notifica a client avremo:
-
-function caricaRecord(qr,cndx) { // cndx = indice array connessioni TCP
-       	var callback = function(err, rowCount) {
-		   				
-                        if (err) {
-                            console.log(err);
-							logga(err.toString()+'\n');
-							connessioni[cndx].write('nack\r\n');
-							logga('Errore su mSql_conn '+cndx+'\n');
-							
-                        } else {
-                            console.log(rowCount + ' rows');
-							logga("Inserito "+rowCount+' record\n');
-							connessioni[cndx].write('ack\r\n');
-							logga('Ok insert su msQl_con'+cndx+'\n');
-                        }
-						
-                    };
-		var request = new Request(qr,callback);
-       	connSql[cndx].execSql(request);	   	// connessione mSql in array con stesso indice conn. TCP
+La scelta della specifica funzione di inserimento dati, che contiene anche la callback di riscontro fine 
+inserimento o errore, è creata dinamicamnete di volta in volta tramite eval() che traduce la stringa di 
+codice esecutivo, creato per ciascuna conn Tcp di MAXCONN, posto in array carica[]: 
+for (var i=0;i<MAXCONN;i++) {
+	carica[i] = " (qr,sqlobj,conx) { "+
+		"var csql = sqlobj.conn;"+
+       	"var callback = function(err, rowCount) { "+
+		"try { "+				
+       	"	if (err) { "+
+				"   clearBusy(sqlobj); "+
+                " 	util.log(conx.remotePort+': '+err); "+
+				" 	var nack = getMsg(5); "+
+				" 	conx.write(nack); "+	
+				" 	logga(conx.remoteport+\": \"+err.toString()+\"\\n\"); } "+
+				"else { "+
+				"	clearBusy(sqlobj); "+
+                "  	util.log(conx.remotePort+': '+ rowCount + ' rows');"+
+				"   logga('Inserito '+ rowCount + \' record\'"+"+'\\n');"+
+				"   var ack = getMsg(1); "+
+				"  	conx.write(ack); "+
+				"  	var hangup = getMsg(6); "+
+				"  	conx.write(hangup); "+
+				"  	logga(conx.remotePort+\": Ok insert su msQl_con"+i+"\\n\"); }"+				
+        "	}	catch(xcp) {"+
+			"	util.log(\"sql Ok, conn"+i+"\" +\" remote socket caduto.\");"+	
+			"	logga(\"sql Ok, conn"+i+"\"+\" remote socket caduto.\\n\");"+"}"+
+	"	}; "+
+	"	var request = new Request(qr,callback); "+
+	"	setBusy(sqlobj); "+
+    "  	csql.execSql(request);}"
 }
-Data la corrispondenza 1:1 degli indici nei due array (tcp_conn / mSql_conn) tcp_server.js sa a chi notificare 
-esito della insert appena conclusa positivamente (ack) o negativamente (nack).
+
+Al momento della richiesta di inserimento dati in DB mSql Server viene crata dinamicamente l'opportuna 
+funzione di controllo:
+
+eval("function load "+carica[conndx]);
+load(qr,connSql[i],connessioni[conndx]);
+
+Dove qr è la query di insert, connSql[i] è la prima connSql trovata libera, conndx è l'indice della
+connessione Tcp al momento in corso richiedente l'inserimento dati.
 
 
 PROTOCOLLO SCAMBIO DATI CLIENT/SERVER
@@ -83,61 +103,7 @@ il server risponde a ciascuna richiesta con Ack o Nack. A seguito di Nack il cli
 caso di Ack rimane in attesa di HANGUP da parte del server, ricevuto HANGUP chiude connessione.
 
 POSSIBILE CONTENUTO MSG:
-(alarm) id_box;matricola;id_sensore;id_allarme
-(alive) id_box;matricola;tipo_alimentazion;anomalie o niente
-
-- 	box
-o	id_box
-o	matricola
-o	id_sim
-o	id_utente
-
--	sensori
-o	id_sensore
-o	id_box
-o	ts_ultimo_test_effettuato
-o	ts_ultima_comunicazione_spontanea
-o	tipo_sensore
-
--	utenti
-o	id_utente
-o	nominativo
-o	tel1
-o	tel2
-o	tel3
-o	tel4
-o	tel5
-
--	alive
-o	id_box
-o	ts
-o	tipo_alimentazione
-o	anomalia_assenza_sensori
-o	power_failure
-o	id_sensore
-o	carica_batteria_sensore
-
--	alarm
-o	id_box
-o	ts
-o	id_sensore
-o	status (se proviene da alive o da alarm)
-
--	call
-o	ts
-o	id_box
-
--	chiamate
-o	id_chiamata
-o	id_box
-o	stato
-o	ts_inizio
-o	ts_fine
-
--	par
-o	id_par
-o	id_chiamata
-o	body
-
-
+(alarm) boxId;rtc;sensSn
+(alive) boxId,rtc,tipal,aas,pwfth,fail_datetime,durata,
+		tipsens,sensSn,carbatt,datetest,datecomm
 

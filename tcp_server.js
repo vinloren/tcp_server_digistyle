@@ -4,11 +4,12 @@ var process = require('process');
 var Buffer = require('Buffer');
 var fs = require('fs');
 var moment = require("moment");
-var writeStream = fs.createWriteStream('./tcpserver.log',
-	{'flags' : 'a',
+var writeStream = fs.openSync('./tcpserver.log','a',0x1b6);
+	/*{'flags' : 1,
 	 'encoding' : 'utf8',
-	 'mode' : 0x1b6});
-
+	 'mode' : 0x1b6 });*/
+	
+var carica = [];
 var connSql = [];
 var connessioni = [];
 var conntms = [];	// timestamp apertura conn
@@ -17,7 +18,11 @@ var callerID = [];
 var cliente = {};
 var Connection = require('tedious').Connection;
 var Request = require('tedious').Request;
-
+var connection;
+var conndx = 0;
+var MAXCONN = 10;
+var c = 0;
+var maxLog = 1000000; // maxLog = 1Mb
 var config = {
         userName: 'sa',
         domainName: "localhost.localdomain",
@@ -36,23 +41,37 @@ process.argv.forEach(function (val, index, array) {
 			port = val;
 			console.log(index + ' port: ' + val);
 			break;
+		case 3:
+			MAXCONN = parseInt(val);
+			console.log(index + ' MAXCONN: ' + val);
 	}
 });	
 
+var stats = fs.statSync('./tcpserver.log');
+var ofset = stats["size"]; // ofset write in log
+	if(ofset > maxLog) {
+		ofset = 0;
+	}
+
+
 var logga = function(log) { 
 				var now = moment(new Date());
-				writeStream.write(now.format("DD/MM/YYYY HH:mm:ss.SSS")+' '+log,'utf8',function(err) {
+				var dati = now.format("DD/MM/YYYY HH:mm:ss.SSS")+' '+log;
+				var buf = new Buffer(dati,'utf8');
+				if(ofset > maxLog) {
+					ofset = 0;
+				}
+				fs.write(writeStream,buf,0,buf.length,ofset,function(err) {
 					if(err) throw err;
+					ofset += buf.length;
+					if(ofset > maxLog) {
+						ofset = 0;
+					}
 				});
 		    }
 			
-var connection;
-var conndx = 0;
-var MAXCONN = 10;
-var c = 0;
-
 // crea pool di MAXCONN connessioni a DB da usare  
-// per future 10 connessioni TCP
+// per future connessioni TCP
 function getConn() {
 	connection = new Connection(config);
     connection.on('connect' , function(err) {
@@ -104,7 +123,6 @@ function clearBusy(obj) {
 	connSql[i].busy = false;
 }
 
-var carica = [];
 
 for (var i=0;i<MAXCONN;i++) {
 	carica[i] = " (qr,sqlobj,conx) { "+
@@ -112,9 +130,9 @@ for (var i=0;i<MAXCONN;i++) {
        	"var callback = function(err, rowCount) { "+
 		"try { "+				
        	"	if (err) { "+
-			"	    clearBusy(sqlobj); "+
-            "     	util.log(conx.remotePort+': '+err); "+
-			"	 	var nack = getMsg(5); "+
+				"   clearBusy(sqlobj); "+
+                " 	util.log(conx.remotePort+': '+err); "+
+				" 	var nack = getMsg(5); "+
 				" 	conx.write(nack); "+	
 				" 	logga(conx.remoteport+\": \"+err.toString()+\"\\n\"); } "+
 				"else { "+
@@ -125,337 +143,14 @@ for (var i=0;i<MAXCONN;i++) {
 				"  	conx.write(ack); "+
 				"  	var hangup = getMsg(6); "+
 				"  	conx.write(hangup); "+
-				"  	logga(conx.remotePort+\": Ok insert su msQl_con"+i+"\"); }"+				
+				"  	logga(conx.remotePort+\": Ok insert su msQl_con"+i+"\\n\"); }"+				
         "	}	catch(xcp) {"+
 			"	util.log(\"sql Ok, conn"+i+"\" +\" remote socket caduto.\");"+	
 			"	logga(\"sql Ok, conn"+i+"\"+\" remote socket caduto.\\n\");"+"}"+
 	"	}; "+
 	"	var request = new Request(qr,callback); "+
 	"	setBusy(sqlobj); "+
-    "  	csql.execSql(request);}";
-}	
-
-
-
-var carica0 = function caricaRecord(qr,sqlobj,conx) {  
-		var csql = sqlobj.conn;
-       	var callback = function(err, rowCount) {
-		try {	   				
-       		if (err) {
-				    clearBusy(sqlobj);
-                 	util.log(conx.remotePort+': '+err);
-				 	var nack = getMsg(5);
-				 	conx.write(nack);			
-				 	logga(conx.remoteport+': '+err.toString()+'\n');			
-                } 
-				else {
-					clearBusy(sqlobj);
-                  	util.log(conx.remotePort+': '+rowCount + ' rows');
-				  	logga('Inserito '+rowCount+' record\n');
-				  	var ack = getMsg(1);
-				  	conx.write(ack);
-				  	var hangup = getMsg(6);
-				  	conx.write(hangup);
-				  	logga(conx.remotePort+': Ok insert su msQl_con0\n');
-				}					
-        	}	
-			catch(xcp) {
-				util.log('sql Ok, conn0 remote socket caduto.');	
-				logga('sql Ok, conn0 remote socket caduto.\n');
-			}
-		};
-		var request = new Request(qr,callback);
-		setBusy(sqlobj);
-       	csql.execSql(request);	   
-}
-
-var carica1 = function caricaRecord(qr,sqlobj,conx) { 
-	   	var csql = sqlobj.conn;
-       	var callback = function(err, rowCount) {
-		try {		   				
-       			if (err) {
-                 	util.log('carica1 '+conx.remotePort+': '+err);
-				 	var nack = getMsg(5);
-				 	conx.write(nack);
-				 	clearBusy(sqlobj);
-				 	logga('carica1 '+conx.remotePort+': '+err.toString()+'\n');			
-                } 
-				else {
-				  	clearBusy(sqlobj);
-                  	util.log(conx.remotePort+': '+rowCount + ' rows');
-				  	logga("Inserito "+rowCount+' record\n');
-				  	var ack = getMsg(1);
-				  	conx.write(ack);
-				  	var hangup = getMsg(6);
-				  	connessioni[1].write(hangup);
-				  	logga(conx.remotePort+': Ok insert su msQl_conn1\n');
-                }
-			}
-			catch(xcp) {
-				util.log('sql Ok, conn1 remote socket caduto.');	
-				logga('sql Ok, conn1 remote socket caduto.\n');
-			}			
-        };
-		var request = new Request(qr,callback);
-		setBusy(sqlobj);
-       	csql.execSql(request);	   
-}
-
-var carica2 = function caricaRecord(qr,sqlobj,conx) { 
-		var csql = sqlobj.conn;   
-       	var callback = function(err, rowCount) {
-		try {	   				
-       			if (err) {
-					clearBusy(sqlobj);  
-                 	util.log('carica2 '+conx.remotePort+': '+err);
-				 	var nack = getMsg(5);
-				 	conx.write(nack);				 	
-				 	logga('carica2 '+conx.remotePort+': '+err+'\n');			
-                } 
-				else {
-					clearBusy(sqlobj);
-                  	util.log(conx.remotePort+': '+rowCount + ' rows');
-				  	logga("Inserito "+rowCount+' record\n');
-				  	var ack = getMsg(1);
-				  	conx.write(ack);
-				  	var hangup = getMsg(6);
-				  	conx.write(hangup);  
-				  	logga(conx.remotePort+': Ok insert su msQl_con2\n');
-                }	
-			}
-			catch(xcp) {
-				util.log('sql Ok, conn2 remote socket caduto.');	
-				logga('sql Ok, conn2 remote socket caduto.\n');
-			}		
-        };
-		var request = new Request(qr,callback);
-		setBusy(sqlobj);
-       	csql.execSql(request);	   
-}
-
-var carica3 = function caricaRecord(qr,sqlobj,conx) {   
-		var csql = sqlobj.conn; 
-       	var callback = function(err, rowCount) {	
-		try {   				
-       		if (err) {
-				   	clearBusy(sqlobj);
-                 	util.log('carica3 '+conx.remotePort+': '+err);
-				 	var nack = getMsg(5);
-				 	conx.write(nack);				 
-				 	logga('carica3 '+conx.remotePort+': '+err.toString()+'\n');			
-                } 
-				else {
-					clearBusy(sqlobj);	
-                  	util.log(conx.remotePort+': '+rowCount + ' rows');
-				  	logga("Inserito "+rowCount+' record\n');
-				  	var ack = getMsg(1);
-				  	conx.write(ack);
-				  	var hangup = getMsg(6);
-				  	conx.write(hangup);	  
-				  	logga(conx.remotePort+': Ok insert su msQl_con3\n');
-                }
-			}
-			catch(xcp) {
-				util.log('sql Ok, conn3 remote socket caduto.');	
-				logga('sql Ok, conn3 remote socket caduto.\n');
-			}				
-        };
-		var request = new Request(qr,callback);
-		setBusy(sqlobj);
-       	csql.execSql(request);	   
-}
-
-var carica4 = function caricaRecord(qr,sqlobj,conx) {  
-		var csql = sqlobj.conn;      
-       	var callback = function(err, rowCount) {	
-		try {   				
-       		if (err) {
-				   	clearBusy(sqlobj);
-                 	util.log('carica4 '+conx.remotePort+': '+err);
-				 	var nack = getMsg(5);
-				 	conx.write(nack);				 
-				 	logga('carica4 '+conx.romotePort+': '+err.toString()+'\n');			
-                } 
-				else {
-					clearBusy(sqlobj);
-                  	util.log(conx.remotePort+': '+rowCount + ' rows');
-				  	logga("Inserito "+rowCount+' record\n');
-				  	var ack = getMsg(1);
-				  	conx.write(ack);
-				  	var hangup = getMsg(6);
-				  	conx.write(hangup);	 
-				  	logga(conx.remotePort+': Ok insert su msQl_con4\n');
-                }
-			}
-			catch(xcp) {
-				util.log('sql Ok, conn4 remote socket caduto.');	
-				logga('sql Ok, conn4 remote socket caduto.\n');
-			}			
-        };
-		var request = new Request(qr,callback);
-		setBusy(sqlobj);
-       	csql.execSql(request);	   
-}
-
-var carica5 = function caricaRecord(qr,sqlobj,conx) {  
-		var csql = sqlobj.conn;      
-       	var callback = function(err, rowCount) {
-		try {	   				
-       		if (err) {
-			   		clearBusy(sqlobj);
-                  	util.log('carica5 '+conx.remotePort+': '+err);
-				 	var nack = getMsg(5);
-				 	conx.write(nack);	 	
-				 	logga('carica5 '+conx.remotePort+': Errore su mSql_conn5\n'+err.toString()+'\n');			
-                } 
-				else {
-					clearBusy(sqlobj);
-                  	util.log(conx.remotePort+': '+rowCount + ' rows');
-				  	logga("Inserito "+rowCount+' record\n');
-				  	var ack = getMsg(1);
-				  	conx.write(ack);
-				  	var hangup = getMsg(6);
-					conx.write(hangup);				  
-				  	logga(conx.remotePort+': Ok insert su msQl_con5\n');
-                }
-			}
-			catch(xcp) {
-				util.log('sql Ok, conn5 remote socket caduto.');	
-				logga('sql Ok, conn5 remote socket caduto.\n');
-			}				
-        };
-		var request = new Request(qr,callback);
-		setBusy(sqlobj);
-       	csql.execSql(request);	   
-}
-
-var carica6 = function caricaRecord(qr,sqlobj,conx) { 
-		var csql = sqlobj.conn;        
-       	var callback = function(err, rowCount) {
-		try {	   				
-       		if (err) {
-				  	clearBusy(sqlobj); 
-                 	util.log('carica6 '+conx.remotePort+': '+err);
-				 	var nack = getMsg(5);
-				 	conx.write(nack);				 
-				 	logga('carica6 '+conx.remotePort+': '+err.toString()+'\n');			
-                } 
-				else {
-					clearBusy(sqlobj);
-                  	util.log(conx.remotePort+': '+rowCount + ' rows');
-				  	logga("Inserito "+rowCount+' record\n');
-					var ack = getMsg(1);
-				  	conx.write(ack);
-				  	var hangup = getMsg(6);
-				  	conx.write(hangup);
-				    logga(conx.remotePort+': Ok insert su msQl_conn6\n');
-                }
-			}
-			catch(xcp) {
-				util.log('sql Ok, conn6 remote socket caduto.');	
-				logga('sql Ok, conn6 remote socket caduto.\n');
-			}						
-        };
-		var request = new Request(qr,callback);
-		setBusy(sqlobj);
-       	csql.execSql(request);	   
-}
-
-var carica7 = function caricaRecord(qr,sqlobj,conx) {  
-		var csql = sqlobj.conn;   
-       	var callback = function(err, rowCount) {	   	
-		try {			
-       			if (err) {
-			   	 	clearBusy(sqlobj);
-                 	util.log('carica7 '+conx.remotePort+': '+err);
-				 	var nack = getMsg(5);
-				 	conx.write(nack);				 
-				 	logga('carica7 '+conx.remotePort+': '+err.toString()+'\n');			
-                } 
-				else {
-					clearBusy(sqlobj);
-                  	util.log(conx.remotePort+': '+rowCount + ' rows');
-				  	logga("Inserito "+rowCount+' record\n');
-				  	var ack = getMsg(1);
-				  	conx.write(ack);
-				  	var hangup = getMsg(6);
-				  	conx.write(hangup);				  
-				  	logga(conx.remotePort+': Ok insert su msQl_conn7\n');
-                }
-			}	
-			catch(xcp) {
-				util.log('sql Ok, conn7 remote socket caduto.');	
-				logga('sql Ok, conn7 remote socket caduto.\n');
-			}			
-        };
-		var request = new Request(qr,callback);
-		setBusy(sqlobj);
-       	csql.execSql(request);	   
-}
-
-var carica8 = function caricaRecord(qr,sqlobj,conx) { 
-		var csql = sqlobj.conn;    
-       	var callback = function(err, rowCount) {	  
-		try { 				
-       		 	if (err) {
-			   		clearBusy(sqlobj);
-                	util.log('carica8 '+conx.remotePort+': '+err);
-					var nack = getMsg(5);
-					conx.write(nack);
-					logga('carica8 '+conx.remorePort+': '+err.toString()+'\n');			               
-			 	} 
-			 	else {
-					clearBusy(sqlobj);
-              		util.log(conx.remotePort+': '+rowCount + ' rows');
-			  		logga("Inserito "+rowCount+' record\n');
-			  		var ack = getMsg(1);
-			  		conx.write(ack);
-			  		var hangup = getMsg(6);
-			  		conx.write(hangup);			  
-			  		logga(conx.remotePort+': Ok insert su msQl_con8\n');
-             	}
-		 	}
-		 	catch(xcp) {
-				util.log('sql Ok, conn8 remote socket caduto.');	
-				logga('sql Ok, conn8 remote socket caduto.\n');
-			}	
-							
-        };
-		var request = new Request(qr,callback);
-		setBusy(sqlobj);
-       	csql.execSql(request);	   
-}
-
-var carica9 = function caricaRecord(qr,sqlobj,conx) {
-		var csql = sqlobj.conn;     
-       	var callback = function(err, rowCount) {	
-		try {   				
-       		if (err) {
-			   		clearBusy(sqlobj);
-                 	util.log('carica9 '+conx.remotePort+': '+err);
-				 	var nack = getMsg(5);
-				 	conx.write(nack);
-				 	logga('carica9 '+conx.remotePort+': '+err.toString()+'\n');			                
-				} 
-				else {
-					clearBusy(sqlobj);
-                  	util.log(conx.remotePort+': '+rowCount + ' rows');
-				  	logga("Inserito "+rowCount+' record\n');
-				  	var ack = getMsg(1);
-				  	conx.write(ack);
-				  	var hangup = getMsg(6);
-				  	conx.write(hangup);		  
-				  	logga(conx.remotePort+': Ok insert su msQl_con9\n');
-                }
-			}
-			catch(xcp) {
-				util.log('sql Ok, conn9 remote socket caduto.');	
-				logga('sql Ok, conn9 remote socket caduto.\n');
-			}				
-        };
-		var request = new Request(qr,callback);
-		setBusy(sqlobj);
-       	csql.execSql(request);	   
+    "  	csql.execSql(request);}"
 }
 
 
