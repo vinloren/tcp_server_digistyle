@@ -3,16 +3,17 @@ var net = require('net');
 var client = new net.Socket();
 var fs = require('fs');
 var moment = require("moment");
+
 var writeStream = fs.createWriteStream('./tcpclient.log',
 	{'flags' : 'a',
 	 'encoding' : 'utf8',
 	 'mode' : 0x1b6});
 	 
-var logga = function(log) { 
+var logga = function(log) {
 				var now = moment(new Date());
-				writeStream.write(now.format("DD MMM YYYY HH:MM:ss.SSS")+' '+log,'utf8',function(err) {
+				writeStream.write(now.format("DD/MM/YY HH:mm:ss.SSS")+' '+log,'utf8',function(err) {
 					if(err) throw err;
-				});
+				})
 		    }
 var myId = '3334177441';
 var port = '8124';
@@ -42,11 +43,6 @@ client.setEncoding('utf8');
 client.connect (port,host, function () {
 	console.log('connected to server');
 	logga(myId+' Connesso a server\n');
-	//client.write('>');
-	// prepara pacchetto dati
-	//var pkt = prepData();
-	//client.write(pkt);
-	//connected = true;
 });
 
 
@@ -78,7 +74,7 @@ function prepData() {
 }
 
 var timer = setInterval(function() { 
-		if(acked && reccnt < 10) {
+		if(acked && reccnt < 6) {
 			client.write(prepData());
 			acked = false;
 			reccnt++;
@@ -90,20 +86,11 @@ var timer = setInterval(function() {
 	}, 5000);
 
 
-/**
-// prepare for input from terminal
-process.stdin.resume();
-// when receive data, send to server
-process.stdin.on('data', function (data) {
-	client.write(data);
-});
-**/
-
-// when receive data back, print to console
 client.on('data',function(data) {
 		connected = true;
 		console.log(data);
-		logga(myId+': '+data);
+		logga(myId+' port: '+client.localPort+': '+data);
+		console.log(myId+' port: '+client.localPort+': '+data);
 		if(data.toString() === 'ack\r\n'
 			|| data.toString() === 'Ready\r\n') {
 			acked = true;

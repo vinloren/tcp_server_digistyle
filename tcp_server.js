@@ -1,18 +1,29 @@
 var net = require('net');
 var util = require('util');
+var process = require('process');
+var Buffer = require('Buffer');
 var fs = require('fs');
 var moment = require("moment");
-var writeStream = fs.createWriteStream('./tcpserver.log',
-	{'flags' : 'a',
+var writeStream = fs.openSync('./tcpserver.log','a',0x1b6);
+	/*{'flags' : 1,
 	 'encoding' : 'utf8',
-	 'mode' : 0x1b6});
-
+	 'mode' : 0x1b6 });*/
+	
+var carica = [];
 var connSql = [];
 var connessioni = [];
+var conntms = [];	// timestamp apertura conn
 var conndata = [];
+var callerID = [];
 var cliente = {};
 var Connection = require('tedious').Connection;
 var Request = require('tedious').Request;
+var connection;
+var conndx = 0;
+var MAXCONN = 10;
+var c = 0;
+var maxLog = 1000000; // maxLog = 1Mb
+var LOG = '1';
 var arrcs = new Array();
 var qrarr = new Array();
 var config = {
@@ -33,36 +44,58 @@ process.argv.forEach(function (val, index, array) {
 			port = val;
 			console.log(index + ' port: ' + val);
 			break;
+		case 3:
+			MAXCONN = parseInt(val);
+			console.log(index + ' MAXCONN: ' + val);
+			break;
+		case 4:
+			LOG = val;
+			console.log(index + ' LOG: ' + val);
+			break;
 	}
 });	
 
+var stats = fs.statSync('./tcpserver.log');
+var ofset = stats["size"]; // ofset write in log
+	if(ofset > maxLog) {
+		ofset = 0;
+	}
+
+
 var logga = function(log) { 
 				var now = moment(new Date());
-				writeStream.write(now.format("DD MMM YYYY HH:MM:ss.SSS")+' '+log,'utf8',function(err) {
+				var dati = now.format("DD/MM/YYYY HH:mm:ss.SSS")+' '+log;
+				var buf = new Buffer(dati,'utf8');
+				if(ofset > maxLog) {
+					ofset = 0;
+				}
+				fs.write(writeStream,buf,0,buf.length,ofset,function(err) {
 					if(err) throw err;
+					ofset += buf.length;
+					if(ofset > maxLog) {
+						ofset = 0;
+					}
 				});
 		    }
 			
-var connection;
-var conndx = 0;
-var MAXCONN = 10;
-var c = 0;
 
 // crea pool di MAXCONN connessioni a DB da usare  
-// per future 10 connessioni TCP
-
+// per future connessioni TCP
 function getConn() {
 	connection = new Connection(config);
     connection.on('connect' , function(err) {
     	// If no error, then good to go...
     	if(err) {
-        	console.log('Errore connessione DB: %s',err);
+        	util.log('Errore connessione DB: %s',err);
 			logga('Errore connessione DB: '+err.toString()+'\n');
 			process.exit();
 		}
     	else {
-			connSql.push(connection);
-        	console.log('DB connesso per conn'+c);
+			var csql = {};
+			csql.conn = connection;
+			csql.busy = false;
+			connSql.push(csql);
+        	util.log('DB connesso per conn'+c);
 			logga('DB connesso per conn'+c+'\n');
 			c++;
 			if(c < MAXCONN) {
@@ -74,32 +107,75 @@ function getConn() {
 
 getConn();
 
-function caricaRecord(qr,cndx) {
-        
-       	var callback = function(err, rowCount) {
-		   				
-                        if (err) {
-                            console.log(err);
-							logga(err.toString()+'\n');
-							connessioni[cndx].write('nack\r\n');
-							logga('Errore su mSql_conn '+cndx+'\n');
-							
-                        } else {
-                            console.log(rowCount + ' rows');
-							logga("Inserito "+rowCount+' record\n');
-							connessioni[cndx].write('ack\r\n');
-							logga('Ok insert su msQl_con'+cndx+'\n');
-                        }
-						
-                    };
-		
-		var request = new Request(qr,callback);
-       	connSql[cndx].execSql(request);	   
+function setBusy(obj) {
+	for(var i=0;i<connSql.length;i++) {
+		if(obj.conn == connSql[i].conn) {
+			break;
+		}
+	}
+	connSql[i].busy = true;
+}
+
+function clearBusy(obj) {
+	for(var i=0;i<connSql.length;i++) {
+		if(obj.conn == connSql[i].conn) {
+			break;
+		}
+	}
+	connSql[i].busy = false;
+}
+
+for (var i=0;i<MAXCONN;i++) {
+	carica[i] = " (qr,sqlobj,conx) { "+
+		"var csql = sqlobj.conn;"+
+       	"var callback = function(err, rowCount) { "+
+		"try { "+				
+       	"	if (err) { "+
+				"   clearBusy(sqlobj); "+
+                " 	util.log(conx.remotePort+': '+err); "+
+				" 	conx.write(\'nack\\r\\n\'); "+	
+				" 	logga(conx.remoteport+\": \"+err.toString()+\"\\n\"); } "+
+				"else { "+
+				"	clearBusy(sqlobj); "+
+                "  	util.log(conx.remotePort+': '+ rowCount + ' rows');"+
+				"   logga('Inserito '+ rowCount + \' record\'"+"+'\\n');"+
+				"  	conx.write(\'ack\\r\\n\'); "+
+				"  	logga(conx.remotePort+\": Ok insert su msQl_con"+i+"\\n\"); }"+				
+        "	}	catch(xcp) {"+
+			"	util.log(\"sql Ok, conn"+i+"\" +\" remote socket caduto.\");"+	
+			"	logga(\"sql Ok, conn"+i+"\"+\" remote socket caduto.\\n\");"+"}"+
+	"	}; "+
+	"	var request = new Request(qr,callback); "+
+	"	setBusy(sqlobj); "+
+    "  	csql.execSql(request);}"
 }
 
 
-			
-		    
+function caricaRecord(qr,conndx) {   
+        // cerca prima connSql libera
+		// csql.conn = connection;
+		// csql.busy = false;
+		var i;
+		for(i=0;i<connSql.length;i++) {
+			if(!connSql[i].busy) {
+				break;
+			}
+		}
+		
+		if(i == connSql.length) {
+				// tutte le conn sql occupate, rispondi nack
+				logga('(insertData) sql conns tutte occupate, rispondo nack\n');
+				return false;
+		}
+		
+		util.log('carico'+conndx); 
+		eval("function load "+carica[conndx]);
+		load(qr,connSql[i],connessioni[conndx]);
+		
+		return true;   
+}
+
+    
 var server = net.createServer(function(conn) {
 	
 	cliente = {};
@@ -107,28 +183,63 @@ var server = net.createServer(function(conn) {
 	cliente.port = conn.remotePort;
 	
 	if(connessioni.length+1 > connSql.length) {
-		conn.end('DB non pronto, riprova\r\n');
+		logga('Conn DB non pronta per conn'+connessioni.length+'\n');
+		util.log('Conn DB non pronta per conn'+connessioni.length);
+		conn.end('nack\r\n'); // send nack
 		return;
 	}
 	
-	connessioni.push(conn);
+	if(connessioni.length > MAXCONN) {
+		logga('MAXCONN raggiunto chiudo socket.\n');
+		util.log('MAXCONN raggiunto chiudo socket.');
+		conn.end('nack\r\n'); // send nack
+		connessioni.slice(connessioni.length-1,1);
+		return;
+	}
 	
 	util.log('connected: '+ cliente.ip+' '+cliente.port);
 	logga('connected: '+ cliente.ip+' '+cliente.port+'\n');
+	conn.write('Ready\r\n');
 	
-	//console.log(connessioni[connessioni.length-1]);
-	//util.log(util.inspect(conn, true, null, true));
-	server.getConnections(function(err,count) {
-		if(err) {
-			logga(err.toString()+'\n');
-			console.log(err.toString()+'\n');
+	var tms = new Date().getTime();
+	connessioni.push(conn);
+	conntms[connessioni.length-1] = tms;
+	callerID[connessioni.length-1] = cliente.port;
+	var top = connessioni.length;
+	var i = 0;
+	while(i<top) {
+		try {
+			logga('conn'+i+': '+connessioni[i].remotePort+'\n');
+			util.log('Conn'+i+': '+connessioni[i].remotePort);
+			// controlla conn timeout
+			var now = new Date().getTime();
+			//util.log('Conn'+i+': '+connessioni[i].remotePort+' attiva da '+(now-conntms[i])/1000+'sec.');
+			//logga('Conn'+i+': '+connessioni[i].remotePort+' attiva da '+(now-conntms[i])/1000+'sec.\n');
+			if((now-conntms[i])>20000) { // chiudile per timeout	
+				logga(callerID[i]+' chiuso conn'+i+' per timeout 20 sec.\n');
+				util.log(callerID[i]+' chiuso conn'+i+' per timeout 20 sec.');
+				connessioni[i].destroy();
+				connessioni.splice(i,1);
+				conntms.splice(i,1);
+				callerID.splice(i,1);
+				top--;
+			}
+			else {
+				i++;
+			}
 		}
-		else {
-			console.log("Current active connections count: "+count);
-			logga("Current active connections count: "+count+'\n');
-			conn.write('Ready\r\n');
-		}
-	});
+		catch(excp) {
+			logga('conn'+i+': '+callerID[i]+' connessione caduta\n');
+			util.log('Conn'+i+': '+callerID[i]+' connessione caduta');
+			connessioni.splice(i,1);
+			conntms.splice(i,1);
+			callerID.splice(i,1);
+			top--;
+		}	
+	}
+	
+	util.log("(on conn) Connessioni ora attive: "+connessioni.length);
+	logga("(on conn) Connessioni ora attive: "+connessioni.length+'\n');
 	
 	function ToHex(buf) {
 		var hex = buf.toString('hex');
@@ -145,20 +256,23 @@ var server = net.createServer(function(conn) {
 		return ret;
 	}
 	
+	// se il client chiude bruscamente si
+	// entra qui piuttosto che a on close
 	conn.on('error', function (err) {
-		logga(err.toString()+'\n');
-		console.log(err.toString()+'\n');	
+		logga(err+'\n');
+		util.log(err);
 	});
 	
 	conn.on('data', function (data) {
 		var now = moment(new Date());
-		now = now.format("DD MMM YYYY HH:MM:ss.SSS");
+		now = now.format("DD/MM/YY HH:mm:ss.SSS");
 		
-		console.log(now+' '+data + ' from ' + 
-			conn.remoteAddress + ' ' +
-			conn.remotePort);
-		
-		logga('len='+data.length+' '+ToHex(data)+'\n');
+		if(LOG == '1') {
+			var cli = conn.remoteAddress + ' ' +
+					  conn.remotePort;
+			util.log(now+' '+data + ' from ' + cli);
+			logga('Ricevuto da '+cli+': len='+data.length+' '+ToHex(data)+'\n');
+		}
 		
 		var i=0;
 		connessioni.forEach(function() {
@@ -178,21 +292,15 @@ var server = net.createServer(function(conn) {
 		}
 		conndata[i] += datas;
 		
-		// se pacchetti gestiti da fine record = EOT EOT
-		if(conndata[i].length > 3) {
-			if(data[data.length-2] == 4 && data[data.length-1] == 4) {
-				util.log("Bytes ricevuti "+conn._handle.onread.arguments['2']+" : "+conndata[i]);
-				logga('Bytes ricevuti '+conndata[i].length+' : '+conndata[i]+'\n');
-				conn.write('ack');
-				conndata.splice(i,1);
-				return;
-			}
-		}
+		
 		// gestione ascii standard
-		logga('conndata['+i+'] = '+conndata[i]+'\n');
+		if(LOG == '1') {
+			logga('conndata['+i+'] = '+conndata[i]+'\n');	
+		}
+		
 		if(conndata[i] == '') {
 			conn.write('Ready\r\n');
-			logga('Ready\n');
+			logga(callerID[i]+': Ready\n');
 			return;
 		}
 			
@@ -201,8 +309,8 @@ var server = net.createServer(function(conn) {
 		}
 		else {
 				conn.write('nack\r\n');
-				console.log('risposto nack a client');
-				logga('Risposto nack a client\n');
+				util.log(callerID[i]+': Risposto nack a client');
+				logga(callerID[i]+': Risposto nack a client\n');
 		}
 	});
 	
@@ -213,13 +321,13 @@ var server = net.createServer(function(conn) {
 		for(var j=0;j<righe.length;j++) {
 			row = righe[j].split(';');
 			if(row.length<5 && j==0) {	
-				logga('Rigetto insert causa riga incompleta: solo '+row.length
+				logga(callerID[conndx]+' Rigetto insert causa riga incompleta: solo '+row.length
 					+' campi= '+ToHex(new Buffer(righe[j],'utf8'))+'\n');
 				return false;
 			}
 			else if(j>0 && row.length < 6) {
 				if(row.length > 1) {
-					logga('qr='+qr+'\nRigetto insert causa riga incompleta: solo '+row.length
+					logga(callerID[conndx]+': qr='+qr+'\nRigetto insert causa riga incompleta: solo '+row.length
 					+' campi= '+ToHex(new Buffer(righe[j],'utf8'))+'\n');
 					return false;
 				}
@@ -234,38 +342,53 @@ var server = net.createServer(function(conn) {
 		}
 		
 		qr = qr.substr(0,qr.length-2);
-		console.log('qr= '+qr);
-		logga('qr= '+qr+'\n');
+		if(LOG == '1') {
+			util.log(callerID[conndx]+': qr= '+qr);
+			logga(callerID[conndx]+': qr= '+qr+'\n');
+		}
 		caricaRecord(qr,conndx);
 		return true;
 	}
 	
 	conn.on('close', function() {
 		util.log('client '+conn._peername.address+' '+conn._peername.port+' closed conn');
-		//console.log(connessioni[connessioni.length-1]);
+		logga('conn port: '+conn._peername.port+' ha chiuso conn.\n');
+		
+		var closing = [];
 		var i=0;
+		
 		connessioni.forEach(function() {
-			if(connessioni[i] == conn)
-				return;
-			else
-				i++;
+			//util.log('conn'+i+': '+connessioni[i].remotePort);
+			try {
+				if(typeof connessioni[i].remotePort == 'undefined') {
+					closing.push(i);
+				}
+				else {
+					logga('conn'+i+' port '+connessioni[i].remotePort+' attiva\n');
+					util.log('conn'+i+' port '+connessioni[i].remotePort+' attiva');
+					i++;
+				}
+			}
+			catch(excp) { // connessioni[i] caduta quindi undefined
+						  // tratto la cosa come remotePort undefined	
+				closing.push(i);
+			}
 		});
 		
-		if(i<connessioni.length) {
-			//console.log("Elimino i="+i+" in array connessioni");
-			connessioni.splice(i,1);
-			conndata.splice(i,1);		
-			console.log("Connessioni attive in array: "+connessioni.length);
-			logga('client '+conn._peername.address+' '+conn._peername.port+' chiuso conn; ne restano attive '+connessioni.length+'\n');
+		var j = closing.length;
+		while(j > -1) {		
+				connessioni.splice(closing[j],1);
+				conndata.splice(closing[j] ,1);	
+				conntms.splice(closing[j],1);
+				logga(callerID[closing[j]]+': chiuso conn.\n');
+				util.log(callerID[closing[j]]+': chiuso conn.');
+				callerID.splice(closing[j],1);
+				j--;	
 		}
-		else {
-			console.log("ERRORE: cliente da chiudere NON trovato!");
-			logga("ERRORE: cliente da chiudere NON trovato!\n");
-		}
-		server.getConnections(function(err,count) {
-			if(err) throw err;
-			util.log("Current active connections count: "+count);
-		})	
+			
+		util.log("(on close) Connessioni ora attive: "+connessioni.length);
+		logga("(on close) Connessioni ora attive: "+connessioni.length+'\n');	
+		
 	});
 }).listen(port);
 console.log('listening on port '+port);
