@@ -212,67 +212,43 @@ var server = net.createServer(function(conn) {
 	logga('connected: '+ cliente.ip+' '+cliente.port+'\n');
 	//console.log(connessioni[connessioni.length-1]);
 	//util.log(util.inspect(conn, true, null, true));
-	server.getConnections(function(err,count) {
-		
-		if(err) {
-			logga('getConnection: '+err.toString()+'\n');
-			util.log('getConnection: '+err.toString()+'\n');
-		}
-		else {
-			var tms = new Date().getTime();
-			connessioni[count-1] = conn;
-			conntms[count-1] = tms;
-			for(var i=0;i<count;i++) {
-				try {
-					if(typeof connessioni[i].remotePort != 'undefined') {
-						logga('Conn'+i+': '+connessioni[i].remotePort+'\n');
-						util.log('Conn'+i+': '+connessioni[i].remotePort);
-						// controlla conn timeout
-						var now = new Date().getTime();
-						//util.log('Conn'+i+': '+connessioni[i].remotePort+' attiva da '+(now-conntms[i])/1000+'sec.');
-						//logga('Conn'+i+': '+connessioni[i].remotePort+' attiva da '+(now-conntms[i])/1000+'sec.\n');
-						if((now-conntms[i])>15500) { // chiudile per timeout
-							connessioni[i].destroy();
-							logga('chiuso conn'+i+' per timeout 15.5 sec.\n');
-							util.log('chiuso conn'+i+' per timeout 15.5 sec.');
-							for(var j=i;j<count-1;j++) {
-								connessioni[j] = connessioni[j+1];
-								conntms[j] = conntms[j+1];
-							}
-							connessioni.splice(j,1);
-							conntms.splice(j,1);
-							util.log('tms last in array='+conntms[j-1]);
-							count--;	
-						}
+	var tms = new Date().getTime();
+	connessioni.push(conn);
+	conntms[connessioni.length-1] = tms;
+	var i = connessioni.length-1;
+	while(i > -1) {
+		try {
+				if(typeof connessioni[i].remotePort != 'undefined') {
+					logga('Conn'+i+': '+connessioni[i].remotePort+'\n');
+					util.log('Conn'+i+': '+connessioni[i].remotePort);
+					var now = new Date().getTime();
+					// controlla conn timeout
+					//util.log('Conn'+i+': '+connessioni[i].remotePort+' attiva da '+(now-conntms[i])/1000+'sec.');
+					//logga('Conn'+i+': '+connessioni[i].remotePort+' attiva da '+(now-conntms[i])/1000+'sec.\n');	
+					if((now-conntms[i])>15500) { // chiudile per timeout
+						connessioni[i].destroy();
+						logga('chiuso conn'+i+' per timeout 15.5 sec.\n');
+						util.log('chiuso conn'+i+' per timeout 15.5 sec.');
+						connessioni.splice(i,1);
+						conntms.splice(i,1);
 					}
-					else {
+				}
+				else {
 						logga('conn'+i+' undefined la elimino\n');
 						util.log('conn'+i+' undefined la elimino');
-						for(var j=i;j<count-1;j++) {
-							connessioni[j] = connessioni[j+1];
-							conntms[j] = conntms[j+1];
-						}
-						connessioni.splice(j,1);
-						conntms.splice(j,1);
-						count--;
-					}
-				 }
-				 catch(excp) {
+						connessioni.splice(i,1);
+						conntms.splice(i,1);
+				}
+				i--;
+		}
+		catch(excp) {
 					 util.log('socket excpt, elimino conn'+i);
 					 logga('socket excpt, elimino conn'+i+'\n');
-					 for(var j=i;j<count-1;j++) {
-							connessioni[j] = connessioni[j+1];
-							conntms[j] = conntms[j+1];
-					 }
-					 connessioni.splice(j,1);
-					 conntms.splice(j,1);
-					 count--;
-				 }
-			}
-			util.log("Current active connections count: "+count);
-			logga("Current active connections count: "+count+'\n');
+					 connessioni.splice(i,1);
+					 conntms.splice(i,1);
+					 i--;
 		}
-	});
+	}
 	
 	function ToHex(buf) {
 		var hex = buf.toString('hex');
@@ -510,8 +486,8 @@ var server = net.createServer(function(conn) {
 	
 	conn.on('close', function() {
 		
-		util.log('client '+conn._peername.address+' '+conn._peername.port+' closed conn');
-		logga('conn port: '+conn._peername.port+' ha chiuso conn.\n');
+		//util.log('client '+conn._peername.address+' '+conn._peername.port+' closed conn');
+		//logga('conn port: '+conn._peername.port+' ha chiuso conn.\n');
 		
 		var closing = [];
 		var i=0;
@@ -534,32 +510,16 @@ var server = net.createServer(function(conn) {
 			}
 		});
 		
-		for(var j=0;j<closing.length;j++) {
-			
-			if(closing[j] == connessioni.length-1) {
-				connessioni.splice(closing[j],1);
-				conndata.splice(closing[j] ,1);	
-				util.log("Elimino i="+closing[j]+" in array connessioni");
-				logga("Elimino i="+closing[j]+' in array connessioni: '+conn._peername.port+'\n');
-			}
-			else {
-					for(i=closing[j];i<connessioni.length-1;i++) {
-						connessioni[i] = connessioni[i+1];
-						conndata[i] = conndata[i+1];
-					}
-					connessioni.splice(i,1);
-					conndata.splice(i,1);	
-			}
-			util.log("Connessioni ora attive: "+connessioni.length);
-			logga("Connessioni ora attive: "+connessioni.length+'\n');
-			logga(callerID[closing[j]]+': client '+conn._peername.address+' '+conn._peername.port+' chiuso conn.\n');
+		for(var j=closing.length-1;j>-1;j--) {	
+			connessioni.splice(closing[j],1);
+			conndata.splice(closing[j],1);	
+			conntms.splice(closing[j],1);		
+			logga('client '+conn._peername.address+' '+conn._peername.port+' chiuso conn.\n');
+			util.log('client '+conn._peername.address+' '+conn._peername.port+' chiuso conn.');
+			callerID.splice(closing[j],1);
 		}
-		/**
-		else {
-			util.log("ERRORE: cliente da chiudere NON trovato!");
-			logga("ERRORE: cliente da chiudere NON trovato!\n");
-		}
-		**/
+		util.log("Connessioni ora attive: "+connessioni.length);
+		logga("Connessioni ora attive: "+connessioni.length+'\n');
 	});
 }).listen(port);
 console.log('listening on port '+port);
