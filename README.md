@@ -18,13 +18,13 @@ asincrone nella connessione TCP con funzioni asincrone nella connessione mSql se
 Ecco allora che risulta più agevole attribuire una connessione mSql a ciascuna connessione TCP attiva e poi 
 fare in modo che il server possa notificare con 'ack' l'avvenuta insert al client che l'aveva richiesta. 
 
-Prevediamo allora il massimo numero di connessioni concorrenti prevedibili e apriamo una conn_mSql per ciascuna 
-di esse. Data la natura asincrona di node.js può capitare all'avvio di tcp_server.js che le n connessioni
-previste col DB non siano ancora state attivate mentre arriva una ennesima cnnessione TCP di numero maggiore
-della massima conn_mSql attivata. In questo caso, come pure nel caso di ennesima connessione TCP > del max
-numero previsto, tcp_server.js risponde con 'DB non pronto, riprova\r\n' chiudendo subito il tcp socket relativo:
+Prevediamo allora il massimo numero di connessioni concorrenti e apriamo una conn_mSql per ciascuna di esse. 
+Data la natura asincrona di node.js può capitare all'avvio di tcp_server.js che le n connessioni previste 
+col DB non siano ancora state attivate mentre arriva una ennesima cnnessione TCP di numero maggiore della 
+massima conn_mSql attivata. In questo caso, come pure nel caso di ennesima connessione TCP > del max numero 
+previsto, tcp_server.js risponde con 'DB non pronto, riprova\r\n' chiudendo subito il tcp socket relativo:
 	if(connessioni.length+1 > connSql.length) {
-		conn.write('DB non pronto, riprova\r\n');
+		conn.end('nack\r\n');
 		conn.close();
 		return;
 	}
@@ -53,8 +53,11 @@ function caricaRecord(qr,cndx) { // cndx = indice array connessioni TCP
 		var request = new Request(qr,callback);
        	connSql[cndx].execSql(request);	   	// connessione mSql in array con stesso indice conn. TCP
 }
-Data la corrispondenza 1:1 degli indici nei due array (tcp_conn / mSql_conn) tcp_server.js sa a chi notificare 
-esito della insert appena conclusa positivamente (ack) o negativamente (nack).
+
+Qesta funzione viene caricata come 'stringa' in un array connSql[] dove ciascun elemento è creato con indice 
+pari a ciascuna connTcp possibile. Al momento della richiesta di accesso al DB viene presa da eval() la 
+prima connSql libera nell'array e quindi eseguita. La corrispondenza con la relativa conn Tcp è così già
+inclusa nella funzione creata con eval(connSql[x]);
 
 
 Soluzione con una singola connessione a DB mSql
