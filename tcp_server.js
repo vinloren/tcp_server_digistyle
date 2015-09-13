@@ -4,11 +4,17 @@ var process = require('process');
 var Buffer = require('Buffer');
 var fs = require('fs');
 var moment = require("moment");
+var logIndex;
+try {
+	 logIndex = fs.openSync('./logIndex.log','r+',0x1b6); 	// puntatore posizione in log file
+}
+catch(exc) {
+	logIndex = fs.openSync('./logIndex.log','w',0x1b6);
+	fs.closeSync(logIndex);
+	logIndex = fs.openSync('./logIndex.log','r+',0x1b6); 
+}
 var writeStream = fs.openSync('./tcpserver.log','a',0x1b6);
-	/*{'flags' : 1,
-	 'encoding' : 'utf8',
-	 'mode' : 0x1b6 });*/
-	
+
 var carica = [];
 var connSql = [];
 var connessioni = [];
@@ -22,6 +28,7 @@ var connection;
 var conndx = 0;
 var MAXCONN = 10;
 var c = 0;
+var ofset  = 0;
 var maxLog = 1000000; // maxLog = 1Mb
 var config = {
         userName: 'sa',
@@ -47,27 +54,47 @@ process.argv.forEach(function (val, index, array) {
 	}
 });	
 
-var stats = fs.statSync('./tcpserver.log');
-var ofset = stats["size"]; // ofset write in log
+
+var stats = fs.fstatSync(logIndex);
+if(stats.size > 0) {
+	var buf = new Buffer(8,'utf8');
+	fs.readSync(logIndex,buf,0,buf.length,0);
+	ofset = parseInt(buf.toString());
 	if(ofset > maxLog) {
 		ofset = 0;
 	}
+	buf = new Buffer(ofset.toString(),'utf8');
+	fs.write(logIndex,buf,0,buf.length,0, function(err) {
+			util.log('Inizio log at '+ofset);
+			if(err) throw err;
+	});
+} 
+else {
+		buf = new Buffer(ofset.toString(),'utf8');
+		fs.write(logIndex,buf,0,buf.length,0, function(err) {
+			util.log('Inizio log at 0');
+			if(err) throw err;
+		});
+}
 
 
 var logga = function(log) { 
 				var now = moment(new Date());
 				var dati = now.format("DD/MM/YYYY HH:mm:ss.SSS")+' '+log;
 				var buf = new Buffer(dati,'utf8');
-				if(ofset > maxLog) {
-					ofset = 0;
-				}
-				fs.write(writeStream,buf,0,buf.length,ofset,function(err) {
+				
+				fs.write(writeStream,buf,0,buf.length,ofset, function(err) {
 					if(err) throw err;
-					ofset += buf.length;
+					ofset += buf.toString('utf8').length;
 					if(ofset > maxLog) {
 						ofset = 0;
 					}
+					buf = new Buffer(ofset.toString(),'utf8');
+					fs.write(logIndex,buf,0,buf.length,0, function(err) { // salva log pointer
+						if(err) throw err;
+					});
 				});
+				
 		    }
 			
 // crea pool di MAXCONN connessioni a DB da usare  
