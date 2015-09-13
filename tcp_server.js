@@ -14,8 +14,15 @@ catch(exc) {
 	fs.closeSync(logIndex);
 	logIndex = fs.openSync('./logIndex.log','r+',0x1b6); 
 }
-var writeStream = fs.openSync('./tcpserver.log','a',0x1b6);
-	
+var writeStream;
+try {
+ 	writeStream = fs.openSync('./tcpserver.log','r+',0x1b6);
+}
+catch(ex) {	
+	writeStream = fs.openSync('./tcpserver.log','w',0x1b6);
+	fs.closeSync(writeStream);
+	writeStream = fs.openSync('./tcpserver.log','r+',0x1b6);
+}
 var carica = [];
 var connSql = [];
 var connessioni = [];
@@ -84,24 +91,37 @@ else {
 		});
 }
 
-
+var loglock = false;
+var righe = [];
 var logga = function(log) { 
 				var now = moment(new Date());
 				var dati = now.format("DD/MM/YYYY HH:mm:ss.SSS")+' '+log;
 				var buf = new Buffer(dati,'utf8');
-				
-				fs.write(writeStream,buf,0,buf.length,ofset, function(err) {
-					if(err) throw err;
-					ofset += buf.toString('utf8').length;
-					if(ofset > maxLog) {
-						ofset = 0;
-					}
-					buf = new Buffer(ofset.toString(),'utf8');
-					fs.write(logIndex,buf,0,buf.length,0, function(err) { // salva log pointer
+				righe.push(buf);
+				var callback = function(err) {
 						if(err) throw err;
-					});
-				});
+					
+						buf = new Buffer(ofset.toString(),'utf8');
+						fs.write(logIndex,buf,0,buf.length,0, function(err) { // salva log pointer
+							if(err) throw err;
+						});
+						ofset += righe[0].length;
+						if(ofset > maxLog) {
+							ofset = 0;
+						}
+						righe.splice(0,1);
+						if(righe.length > 0) {
+							fs.write(writeStream,righe[0],0,righe[0].length,ofset,callback);
+						}
+						else {
+							loglock = false;
+						}
+				};
 				
+				if(!loglock) {
+					fs.write(writeStream,righe[0],0,righe[0].length,ofset,callback); 
+					loglock = true;	
+				}
 		    }
 			
 
