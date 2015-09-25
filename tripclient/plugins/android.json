@@ -47,6 +47,18 @@
                         {
                             "xml": "<feature name=\"InAppBrowser\"><param name=\"android-package\" value=\"org.apache.cordova.inappbrowser.InAppBrowser\" /></feature>",
                             "count": 1
+                        },
+                        {
+                            "xml": "<feature name=\"WebSocket\"><param name=\"android-package\" value=\"com.knowledgecode.cordova.websocket.WebSocket\" /></feature>",
+                            "count": 1
+                        },
+                        {
+                            "xml": "<feature name=\"Sim\"><param name=\"android-package\" value=\"com.pbakondy.Sim\" /></feature>",
+                            "count": 1
+                        },
+                        {
+                            "xml": "<feature name=\"Notification\"><param name=\"android-package\" value=\"org.apache.cordova.dialogs.Notification\" /></feature>",
+                            "count": 1
                         }
                     ]
                 }
@@ -69,8 +81,17 @@
                         {
                             "xml": "<uses-permission android:name=\"android.permission.WRITE_EXTERNAL_STORAGE\" />",
                             "count": 2
+                        },
+                        {
+                            "xml": "<uses-permission android:name=\"android.permission.INTERNET\" />",
+                            "count": 1
+                        },
+                        {
+                            "xml": "<uses-permission android:name=\"android.permission.READ_PHONE_STATE\" />",
+                            "count": 1
                         }
-                    ]
+                    ],
+                    "/manifest": []
                 }
             },
             "config.xml": {
@@ -119,7 +140,13 @@
         "cordova-plugin-inappbrowser": {
             "PACKAGE_NAME": "com.example.tripclient"
         },
-        "cordova-plugin-console": {
+        "cordova-plugin-websocket": {
+            "PACKAGE_NAME": "com.example.tripclient"
+        },
+        "cordova-plugin-sim": {
+            "PACKAGE_NAME": "com.example.tripclient"
+        },
+        "org.apache.cordova.dialogs": {
             "PACKAGE_NAME": "com.example.tripclient"
         }
     },

@@ -245,17 +245,31 @@ module.exports = [
         ]
     },
     {
-        "file": "plugins/cordova-plugin-console/www/logger.js",
-        "id": "cordova-plugin-console.logger",
+        "file": "plugins/cordova-plugin-websocket/www/websocket.js",
+        "id": "cordova-plugin-websocket.websocket",
         "clobbers": [
-            "cordova.logger"
+            "WebSocket"
         ]
     },
     {
-        "file": "plugins/cordova-plugin-console/www/console-via-logger.js",
-        "id": "cordova-plugin-console.console",
+        "file": "plugins/cordova-plugin-sim/www/sim.js",
+        "id": "cordova-plugin-sim.Sim",
         "clobbers": [
-            "console"
+            "window.plugins.sim"
+        ]
+    },
+    {
+        "file": "plugins/org.apache.cordova.dialogs/www/notification.js",
+        "id": "org.apache.cordova.dialogs.notification",
+        "merges": [
+            "navigator.notification"
+        ]
+    },
+    {
+        "file": "plugins/org.apache.cordova.dialogs/www/android/notification.js",
+        "id": "org.apache.cordova.dialogs.notification_android",
+        "merges": [
+            "navigator.notification"
         ]
     }
 ];
@@ -273,7 +287,9 @@ module.exports.metadata =
     "cordova-plugin-file-transfer": "1.2.1",
     "cordova-plugin-splashscreen": "2.1.0",
     "cordova-plugin-inappbrowser": "1.0.1",
-    "cordova-plugin-console": "1.0.1"
+    "cordova-plugin-websocket": "0.10.0",
+    "cordova-plugin-sim": "1.0.2",
+    "org.apache.cordova.dialogs": "0.3.0"
 }
 // BOTTOM OF METADATA
 });

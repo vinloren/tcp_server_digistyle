@@ -3,7 +3,7 @@ var net = require('net');
 var client = new net.Socket();
 var fs = require('fs');
 var moment = require("moment");
-
+var process = require('process');
 var writeStream = fs.createWriteStream('./tcpclient.log',
 	{'flags' : 'a',
 	 'encoding' : 'utf8',

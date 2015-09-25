@@ -1,49 +1,168 @@
 <!DOCTYPE html>
-<!--
-    Licensed to the Apache Software Foundation (ASF) under one
-    or more contributor license agreements.  See the NOTICE file
-    distributed with this work for additional information
-    regarding copyright ownership.  The ASF licenses this file
-    to you under the Apache License, Version 2.0 (the
-    "License"); you may not use this file except in compliance
-    with the License.  You may obtain a copy of the License at
+<html lang="en">
+<head>
+<title>Traccia Viaggi</title>
+<!-- mia google api key = AIzaSyASIusfC3oS5xTdXW1gkXzmrXBrksyZx_A -->
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: https://ssl.gstatic.com 'unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src *; connect-src ws://vinloren.ns0.it:8124">
+<meta name="viewport" content="user-scalable=no,initial-scale=1,
+	maximum-scale=1,minimum-scale=1,width=device-width">
+<link rel="stylesheet" href="jquery/jquery.mobile-1.4.5.min.css" type="text/css">
+<script type="text/javascript" src="jquery/jquery-1.11.3.min.js"></script>
+<script type="text/javascript" src="jquery/jquery.mobile-1.4.5.min.js"></script>
+<script type="text/javascript" src="http://maps.googleapis.com/maps/api/js?key=AIzaSyASIusfC3oS5xTdXW1gkXzmrXBrksyZx_A&sensor=true"></script>
+<script type="text/javascript" src="cordova.js"></script>
+<script type="text/javascript" src="telephonenumber.js"></script>
 
-    http://www.apache.org/licenses/LICENSE-2.0
+<script>  
+var myId = "1234567890";  
+var error = false;
+var first = true;
+var acked = false;
+var plotcount = 0;
+var maxcount = 8;
+var ws;
+function appendLog(msg) {
+	plotcount++;
+   	var messages = document.getElementById('messages');
+   	var messageElem = document.createElement("li");
+   	messageElem.innerHTML = msg;         
+   	messages.appendChild(messageElem);
+	if(plotcount > maxcount) {
+		messages.removeChild(messages.childNodes[0]);  
+	}
+}
 
-    Unless required by applicable law or agreed to in writing,
-    software distributed under the License is distributed on an
-    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-     KIND, either express or implied.  See the License for the
-    specific language governing permissions and limitations
-    under the License.
--->
-<html>
-    <head>
-        <!--
-        Customize this policy to fit your own app's needs. For more guidance, see:
-            https://github.com/apache/cordova-plugin-whitelist/blob/master/README.md#content-security-policy
-        Some notes:
-            * gap: is required only on iOS (when using UIWebView) and is needed for JS->native communication
-            * https://ssl.gstatic.com is required only on Android and is needed for TalkBack to function properly
-            * Disables use of inline scripts in order to mitigate risk of XSS vulnerabilities. To change this:
-                * Enable inline JS: add 'unsafe-inline' to default-src
-        -->
-        <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: https://ssl.gstatic.com 'unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src *">
-        <meta name="format-detection" content="telephone=no">
-        <meta name="msapplication-tap-highlight" content="no">
-        <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
-        <link rel="stylesheet" type="text/css" href="css/index.css">
-        <title>Hello World</title>
-    </head>
-    <body>
-        <div class="app">
-            <h1>Apache Cordova</h1>
-            <div id="deviceready" class="blink">
-                <p class="event listening">Connecting to Device</p>
-                <p class="event received">Device is Ready</p>
-            </div>
-        </div>
-        <script type="text/javascript" src="cordova.js"></script>
-        <script type="text/javascript" src="js/index.js"></script>
-    </body>
+function getTms() {
+     var data = new Date();
+	 var ore = (data.getHours()+100).toString().substring(1,3)+':';
+	 var min = (data.getMinutes()+100).toString().substring(1,3)+':';
+	 var sec = (data.getSeconds()+100).toString().substring(1,3)+'.';
+	 var mil = (data.getMilliseconds()+'000').toString().substring(0,3);
+     var tms = ore+min+sec+mil; 
+     return tms;
+ }
+
+function onPosOK(position) {
+	var precision = position.coords.accuracy;
+	//console.log("Position precision = mt. "+Math.floor(precision));
+	plotcount++;
+	appendLog(getTms()+" Punto OK +/- mt: "+Math.floor(precision));
+	if(precision < 100) {	
+		if(acked) {
+			try {
+				var latLng = {lat: position.coords.latitude, lng: position.coords.longitude};
+				var mapOptions ={center: latLng,panControl: false,zoomControl: true, 
+					zoom: 16,mapTypeId: google.maps.MapTypeId.ROADMAP};
+				var map = new google.maps.Map(document.getElementById('map_holder'),
+					mapOptions);
+				var marker = new google.maps.Marker({position: latLng,map: map});
+				navigator.notification.beep(1);
+			}
+			catch(er) {
+				appendLog(er.toString());
+			}	
+			var rec = prepData(position);
+			sendMessage(rec);
+		}
+	}
+}
+
+function onPosKO(error) {
+	appendLog(getTms()+" GPS error: "+error.message);
+}
+
+function prepData(position) {
+	/** generarecord di 6 campi:
+	[id] [bigint] NOT NULL,
+	[tms] [int] NOT NULL,
+	[lat] [real] NOT NULL,
+	[long] [real] NOT NULL,
+	[speed] [smallint] NOT NULL,
+	[rotta] [real] NOT NULL,
+	**/
+	var record = myId+';';
+	record += Math.floor(Date.now()/1000).toString()+';';
+	var rotta= Math.floor(position.coords.heading*10)/10;
+	var speed= Math.floor(position.coords.speed*3.6);
+	var latitude = Math.floor(position.coords.latitude*100000)/100000;
+	record += latitude.toString()+';';
+	var longitude = Math.floor(position.coords.longitude*100000)/100000;
+	record += longitude.toString()+';';
+	record += speed.toString()+';';
+	record += rotta.toString();
+	lastrec = record;
+	return record;
+}
+
+function sendMessage(msg) {
+  	ws.send(msg);	 	
+	acked = false;
+	appendLog(getTms()+" Inviato record: "+msg);
+}
+ 
+function init() {
+ 	ws = new WebSocket("ws://vinloren.ns0.it:8124");
+	
+ 	var error = false;
+
+ 	ws.onopen = function(e) {
+		appendLog(getTms()+" Connesso a server");
+ 	}
+ 
+ 	ws.onmessage = function(e) {
+   		if(e.data == 'ack') {
+     		acked = true;
+   		}
+   		else if(e.data == 'nack') {
+     		appendLog(getTms()+" Ricevuto nack, chiudo connessione");
+     		ws.close();
+   		} 
+ 	}
+ 
+ 	ws.onerror = function(e) { 
+		error = true;
+		appendLog(getTms()+" Errore di collegamento"); 
+ 	}
+ 
+ 	ws.onclose = function(e) {
+		if(!error && acked) {
+   			appendLog(getTms()+" Connessione chiusa OK.");
+ 		}
+		else {
+			appendLog(getTms()+" Connessione inagibile");
+		}
+ 	}
+	
+	var successCallback = function(success) {
+		appendLog("MioNumTel: "+success.phoneNumber);
+		myId = success.phoneNumber;
+		appendLog(getTms()+" Cerco mia posizione GPS");
+		var options = {enableHighAccuracy: true, maximumAge: 10000, timeout: 30000};
+		navigator.geolocation.watchPosition(onPosOK,onPosKO,options);
+	}
+	
+	var errorCallback = function(error) {
+		appendLog("Ricerca MioNumTel fallita");
+		appendLog(getTms()+" Cerco mia posizione GPS");
+		navigator.geolocation.watchPosition(onPosOK,onPosKO,options);
+	}
+	
+	window.plugins.sim.getSimInfo(successCallback, errorCallback);
+}
+
+</script>
+<script type="text/javascript" src="js/index.js"></script>
+</head>
+<body>
+<li</li>
+<div data-role="page" id="connection-log">
+ <div data-role="header"><h3>Traccia Viaggi</h3></div>
+ <div data-role="content" >
+  <ul style="font-size:11px" id="messages" data-role="listview" data-inset="true"></ul>
+ </div>
+ <div style="height: 280px; border: 4px solid #8AC007" id="map_holder"></div>
+</div>
+</body>
 </html>
+ 
