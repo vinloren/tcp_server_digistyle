@@ -288,13 +288,13 @@ function insertData(dats,conndx) {
 		for(var j=0;j<righe.length;j++) {
 			row = righe[j].split(';');
 			if(row.length<6 && j==0) {	
-				logga(callerID[conndx]+' Rigetto insert causa riga incompleta: solo '+row.length
+				logga(clients[conndx].id+' Rigetto insert causa riga incompleta: solo '+row.length
 					+' campi= '+righe[j]+'\n');
 				return false;
 			}
 			else if(j>0 && row.length < 6) {
 				if(row.length > 1) {
-					logga(callerID[conndx]+': qr='+qr+'\nRigetto insert causa riga incompleta: solo '+row.length
+					logga(clients[conndx].id+': qr='+qr+'\nRigetto insert causa riga incompleta: solo '+row.length
 					+' campi= '+righe[j]+'\n');
 					return false;
 				}
