@@ -59,6 +59,10 @@
                         {
                             "xml": "<feature name=\"Notification\"><param name=\"android-package\" value=\"org.apache.cordova.dialogs.Notification\" /></feature>",
                             "count": 1
+                        },
+                        {
+                            "xml": "<feature name=\"SQLitePlugin\"><param name=\"android-package\" value=\"io.liteglue.SQLitePlugin\" /></feature>",
+                            "count": 1
                         }
                     ]
                 }
@@ -147,6 +151,9 @@
             "PACKAGE_NAME": "com.example.tripclient"
         },
         "org.apache.cordova.dialogs": {
+            "PACKAGE_NAME": "com.example.tripclient"
+        },
+        "io.litehelpers.cordova.sqlite": {
             "PACKAGE_NAME": "com.example.tripclient"
         }
     },

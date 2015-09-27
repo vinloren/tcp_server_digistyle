@@ -15,14 +15,21 @@
 <script type="text/javascript" src="telephonenumber.js"></script>
 
 <script>  
+var wifi = false;
+var dbTrips = null;
+var DBchecked = false;
+var recsSent = false;
 var myId = "1234567890";  
 var error = false;
 var first = true;
 var acked = false;
 var plotcount = 0;
-var maxcount = 8;
+var maxcount = 10;
 var ws;
 var linePath = [];
+var nump  = 0;
+var pPos;
+var plots = [];
 
 function appendLog(msg) {
 	plotcount++;
@@ -48,40 +55,170 @@ function getTms() {
 function onPosOK(position) {
 	var precision = position.coords.accuracy;
 	//console.log("Position precision = mt. "+Math.floor(precision));
-	plotcount++;
 	appendLog(getTms()+" Punto OK +/- mt: "+Math.floor(precision));
-	if(precision < 100) {	
+	if(precision < 100) {
+		pPos = position;	
 		if(acked) {
-			try {			
-				var latLng = {lat: position.coords.latitude, lng: position.coords.longitude};
-				var mapOptions ={center: latLng,panControl: false,zoomControl: true, 
-					zoom: 16,mapTypeId: google.maps.MapTypeId.ROADMAP};
-				var map = new google.maps.Map(document.getElementById('map'),mapOptions);
-				var punto = new google.maps.LatLng(latLng.lat,latLng.lng);
-				linePath.push(punto);
-				var	lineOpt = {path:linePath,strokeWeight:3,strokeColor:'#FF0000',strokeOpacity:0.8};
-				var marker = new google.maps.Marker({position:linePath[0],icon:'img/marker.png',map: map});
-				var polyline = new google.maps.Polyline(lineOpt);
-				for(var i=1;i<linePath.length-1;i++) {
+			if(wifi) {
+				try {			
+					var latLng = {lat: position.coords.latitude, lng: position.coords.longitude};
+					var mapOptions ={center: latLng,panControl: false,zoomControl: true, 
+						zoom: 16,mapTypeId: google.maps.MapTypeId.ROADMAP};
+					var map = new google.maps.Map(document.getElementById('map'),mapOptions);
+					var punto = new google.maps.LatLng(latLng.lat,latLng.lng);
+					linePath.push(punto);
+					var	lineOpt = {path:linePath,strokeWeight:3,strokeColor:'#FF0000',strokeOpacity:0.8};
+					var marker = new google.maps.Marker({position:linePath[0],icon:'img/marker.png',map: map});
+					var polyline = new google.maps.Polyline(lineOpt);
+					for(var i=1;i<linePath.length-1;i++) {
 						var marker1 = new google.maps.Marker({position:linePath[i],icon:'img/marker-gold.png',map: map});
+					}
+					if(linePath.length > 2) {
+						var marker2 = new google.maps.Marker({position:linePath[i],icon:'img/marker-green.png',map: map});
+					}
+					polyline.setMap(map);	
+					navigator.notification.beep(1);
 				}
-				if(linePath.length > 2) {
-					var marker2 = new google.maps.Marker({position:linePath[i],icon:'img/marker-green.png',map: map});
-				}
-				polyline.setMap(map);	
-				navigator.notification.beep(1);
+				catch(er) {
+					appendLog(er.toString());
+				}	
+				var rec = prepData(position);
+				sendMessage(rec);
 			}
-			catch(er) {
-				appendLog(er.toString());
-			}	
-			var rec = prepData(position);
-			sendMessage(rec);
+			else {		
+				acked = true;
+				// Apri accesso a DB sqlite per salvare viaggio offline	
+				try {
+					dbTrips = window.openDatabase("trips","1.0","DB viaggi",300000);
+					if(nump < 1) {
+						dbTrips.transaction(function(tx) {
+							tx.executeSql('CREATE TABLE IF NOT EXISTS plots (\
+							_id INTEGER PRIMARY KEY AUTOINCREMENT,tms integer,\
+							lat float,long float,speed integer,rotta float)');
+						},dbError,tbOK);
+					}
+					else {
+						dbTrips.transaction(function(tx) {
+							var tms = new Date().getTime();
+							tms = Math.floor(tms/1000);
+							var qr = "INSERT INTO plots(tms,lat,long,speed,rotta) values(";
+							qr += tms+","+pPos.coords.latitude+","+pPos.coords.longitude+",";
+							qr += pPos.coords.speed+","+pPos.coords.heading+")";
+							tx.executeSql(qr);	
+						},dbError,insertOK);	
+					}				
+				}
+				catch(er) {
+					appendLog(er.toString());			
+				}
+			}
 		}
 	}
 }
 
+function tbOK() {
+	dbTrips.transaction(function(tx) {
+		var tms = new Date().getTime();
+		tms = Math.floor(tms/1000);
+		var qr =  "INSERT INTO plots(tms,lat,long,speed,rotta) values(";
+		qr += tms+","+pPos.coords.latitude+","+pPos.coords.longitude+",";
+		qr += pPos.coords.speed+","+pPos.coords.heading+")";
+		tx.executeSql(qr);	
+	},dbError,insertOK);	
+}
+
+function insertOK() {
+	nump++;
+	appendLog(getTms()+" Inserito punto "+nump);
+}
+
+function dbError(er) {
+	appendLog(getTms()+" DB error: "+er.toString());		
+}
+
 function onPosKO(error) {
 	appendLog(getTms()+" GPS error: "+error.message);
+}
+
+function checkDB() {
+	dbTrips = window.openDatabase("trips","1.0","DB viaggi",300000);
+	dbTrips.transaction(function(tx) {
+		tx.executeSql("SELECT tms,lat,long,speed,rotta FROM plots ORDER BY tms",
+		[],getRecsOK,dbError);	
+	},dbError);
+}
+
+function deleteOK(rows) {
+	appendLog(getTms()+" Cancellati "+rows+" record in DB");
+}
+
+function getRecsOK(tx,res) {
+	DBchecked = true;
+	var lung = res.rows.length;
+	var speed;
+	var rotta;
+	
+	try {
+		if(lung == 0) {
+			acked = true;
+			return;
+		}
+	}
+	catch(e) {
+		acked = true;
+		return;
+	}
+	
+	try {
+		var record = "";
+		for(var i=0;i<res.rows.length-1;i++) {
+			record += myId+';';
+			record += res.rows.item(i).tms+';';
+			record += Math.floor(res.rows.item(i).lat*100000)/100000+';';
+			record += Math.floor(res.rows.item(i).long*100000)/100000+';';
+			try {
+				 speed = Math.floor(res.rows.item(i).speed);
+			}
+			catch(er) {
+				spped = 0;
+			}
+			record += speed+';';
+			try {
+				rotta = Math.floor(res.rows.item(i).rotta*10)/10;
+			}
+			catch(err) {
+				rotta = 0;
+			}
+			record += rotta +'&';
+		}
+		record += myId+';';
+		record += res.rows.item(i).tms+';';
+		record += Math.floor(res.rows.item(i).lat*100000)/100000+';';
+		record += Math.floor(res.rows.item(i).long*100000)/100000+';';
+		try {
+			 speed = Math.floor(res.rows.item(i).speed);
+		}
+		catch(er1) {
+			spped = 0;
+		}
+		record += speed+';';
+		try {
+			rotta = Math.floor(res.rows.item(i).rotta*10)/10;
+		}
+		catch(err1) {
+			rotta = 0;
+		}
+		record += rotta;
+		//alert(record);
+		ws.send(record);	 	
+		acked = false;
+		recSent = true;
+		lastrecord = record;
+		appendLog(getTms()+" Inviato "+res.rows.length+" record letti in DB");
+	}
+	catch(err) {
+		appendLog(getTms()+" Errore: "+err);	
+	}
 }
 
 function prepData(position) {
@@ -110,42 +247,70 @@ function prepData(position) {
 function sendMessage(msg) {
   	ws.send(msg);	 	
 	acked = false;
-	appendLog(getTms()+" Inviato record: "+msg);
+	if(msg.length > 32) {
+		msg = msg.substring(0,32);
+	}
+	appendLog(getTms()+" "+msg);
 }
  
 function init() {
- 	ws = new WebSocket("ws://vinloren.ns0.it:8124");
-	
- 	var error = false;
+	var width = $(window).width();
+	var height = $(window).height();
+	height = Math.floor(height*0.5)+'px';
+	document.getElementById('map').style.height = height;
+	// vedi se rete est accessibile
+	var netState = navigator.network.connection.type;
+	if(netState == 'wifi') {
+		wifi = true;
+ 		ws = new WebSocket("ws://vinloren.ns0.it:8124");
+ 		var error = false;
 
- 	ws.onopen = function(e) {
-		appendLog(getTms()+" Connesso a server");
- 	}
- 
- 	ws.onmessage = function(e) {
-   		if(e.data == 'ack') {
-     		acked = true;
-   		}
-   		else if(e.data == 'nack') {
-     		appendLog(getTms()+" Ricevuto nack, chiudo connessione");
-     		ws.close();
-   		} 
- 	}
- 
- 	ws.onerror = function(e) { 
-		error = true;
-		appendLog(getTms()+" Errore di collegamento"); 
- 	}
- 
- 	ws.onclose = function(e) {
-		if(!error && acked) {
-   			appendLog(getTms()+" Connessione chiusa OK.");
+ 		ws.onopen = function(e) {
+			appendLog(getTms()+" Connesso a server");
  		}
-		else {
-			appendLog(getTms()+" Connessione inagibile");
-		}
- 	}
-	
+ 
+ 		ws.onmessage = function(e) {
+   			if(e.data == 'ack') {
+				// vai a vedere se il DB sqlite è vuoto nel qual caso setti acked=true
+				// altrimenti invia il pacco di record nel DB al server in unica send
+     			if(DBchecked) {
+					acked = true;
+					if(recSent)	 {
+						recSent = false;
+						alert("Cancello dati locali");
+						dbTrips.transaction(function(tx) {
+							tx.executeSql("DELETE FROM plots");	
+						},dbError,deleteOK);
+					}
+				}
+				else {
+				 	checkDB();
+				}
+   			}
+   			else if(e.data == 'nack') {
+     			appendLog(getTms()+" Ricevuto nack, chiudo connessione");
+     			ws.close();
+   			} 
+ 		}
+ 
+ 		ws.onerror = function(e) { 
+			error = true;
+			appendLog(getTms()+" Errore di collegamento"); 
+ 		}
+ 
+ 		ws.onclose = function(e) {
+			if(!error && acked) {
+   				appendLog(getTms()+" Connessione chiusa OK.");
+ 			}
+			else {
+				appendLog(getTms()+" Connessione inagibile");
+			}
+ 		}
+	}
+	else {
+		appendLog(getTms()+" Rete non disponibile");
+		acked = true;
+	}
 	var successCallback = function(success) {
 		appendLog("MioNumTel: "+success.phoneNumber);
 		myId = success.phoneNumber;
@@ -173,7 +338,7 @@ function init() {
  <div data-role="content" >
   <ul style="font-size:11px" id="messages" data-role="listview" data-inset="true"></ul>
  </div>
- <div style="height: 280px; border: 4px solid #8AC007" id="map"></div>
+ <div style="border: 4px solid #8AC007" id="map"></div>
 </div>
 </body>
 </html>
