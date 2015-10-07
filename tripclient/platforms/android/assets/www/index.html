@@ -29,7 +29,11 @@ var ws;
 var linePath = [];
 var nump  = 0;
 var pPos;
+var lastRoute = 0;
+var lastTime  = 0;
 var plots = [];
+var Position = [];
+var Pdate = [];
 
 function appendLog(msg) {
 	plotcount++;
@@ -51,13 +55,32 @@ function getTms() {
      var tms = ore+min+sec+mil; 
      return tms;
  }
+ 
+ function getData() {
+	 var data = new Date();
+	 var oggi = data.getFullYear()+'/'+(data.getMonth()+1)+'/'+data.getDate();
+	 return oggi;
+ }
 
 function onPosOK(position) {
 	var precision = position.coords.accuracy;
 	//console.log("Position precision = mt. "+Math.floor(precision));
 	appendLog(getTms()+" Punto OK +/- mt: "+Math.floor(precision));
-	if(precision < 100) {
-		pPos = position;	
+	if(precision < 64) {
+		pPos = position;
+		var time = new Date().getTime();
+		if(pPos.heading == null) {
+			pPos.heading = 0;
+		}
+		var delta = pPos.heading - lastRoute;
+		// scarta punto se rotta attuale < +- 11 gradi rotta precedente
+		// e tempo ultimo punto < 30 sec. da tempo attuale
+		if(delta*delta < 121 && 		 
+			(time - lastTime) < 30000) { 
+			return;						 
+		}	
+		lastRoute = pPos.heading;
+		lastTime = time;
 		if(acked) {
 			if(wifi) {
 				try {			
@@ -67,78 +90,111 @@ function onPosOK(position) {
 					var map = new google.maps.Map(document.getElementById('map'),mapOptions);
 					var punto = new google.maps.LatLng(latLng.lat,latLng.lng);
 					linePath.push(punto);
+					Position.push(position);
+					Pdate.push(getData()+' '+getTms());
 					var	lineOpt = {path:linePath,strokeWeight:3,strokeColor:'#FF0000',strokeOpacity:0.8};
 					var marker = new google.maps.Marker({position:linePath[0],icon:'img/marker.png',map: map});
+					var cont =  "<div style='font-size:10px; width=100px; height=70px'>";
+						cont += Pdate[0]+'<br>';
+						cont += 'Vel: '+Math.floor(Position[0].coords.speed)+'Km/h<br>';
+						cont += 'Dir: '+Math.floor(Position[0].coords.heading*10)/10+'<br>';			   
+					marker.info = new google.maps.InfoWindow({content: cont});
+					google.maps.event.addListener(marker, 'click', function() {
+						var marker_map = this.getMap();
+    					this.info.open(marker_map,this);
+					});
 					var polyline = new google.maps.Polyline(lineOpt);
 					for(var i=1;i<linePath.length-1;i++) {
-						var marker1 = new google.maps.Marker({position:linePath[i],icon:'img/marker-gold.png',map: map});
+						marker = new google.maps.Marker({position:linePath[i],icon:'img/marker-gold.png',map: map});
+						cont =  "<div style='font-size:10px; width=100px; height=70px'>";
+						cont += Pdate[i]+'<br>';
+						cont += 'Vel: '+Math.floor(Position[i].coords.speed)+'Km/h<br>';
+						cont += 'Dir: '+Math.floor(Position[i].coords.heading*10)/10+'<br>';			   
+						marker.info = new google.maps.InfoWindow({content: cont});
+						google.maps.event.addListener(marker, 'click', function() {
+							var marker_map = this.getMap();
+    						this.info.open(marker_map,this);
+						});
+					
 					}
 					if(linePath.length > 2) {
-						var marker2 = new google.maps.Marker({position:linePath[i],icon:'img/marker-green.png',map: map});
+						marker = new google.maps.Marker({position:linePath[i],icon:'img/marker-green.png',map: map});
+						cont =  "<div style='font-size:10px; width=100px; height=70px'>";
+						cont += Pdate[i]+'<br>';
+						cont += 'Vel: '+Math.floor(Position[i].coords.speed)+'Km/h<br>';
+						cont += 'Dir: '+Math.floor(Position[i].coords.heading*10)/10+'<br>';			   
+						marker.info = new google.maps.InfoWindow({content: cont});
+						google.maps.event.addListener(marker, 'click', function() {
+							var marker_map = this.getMap();
+    						this.info.open(marker_map,this);
+						});
 					}
 					polyline.setMap(map);	
 					navigator.notification.beep(1);
+					var rec = prepData(position);
+					sendMessage(rec);
 				}
 				catch(er) {
 					appendLog(er.toString());
-				}	
-				var rec = prepData(position);
-				sendMessage(rec);
+				}		
 			}
 			else {		
-				acked = true;
-				// Apri accesso a DB sqlite per salvare viaggio offline	
-				try {
-					dbTrips = window.openDatabase("trips","1.0","DB viaggi",300000);
-					if(nump < 1) {
-						dbTrips.transaction(function(tx) {
-							tx.executeSql('CREATE TABLE IF NOT EXISTS plots (\
-							_id INTEGER PRIMARY KEY AUTOINCREMENT,tms integer,\
-							lat float,long float,speed integer,rotta float)');
-						},dbError,tbOK);
-					}
-					else {
-						dbTrips.transaction(function(tx) {
-							var tms = new Date().getTime();
-							tms = Math.floor(tms/1000);
-							var qr = "INSERT INTO plots(tms,lat,long,speed,rotta) values(";
-							qr += tms+","+pPos.coords.latitude+","+pPos.coords.longitude+",";
-							qr += pPos.coords.speed+","+pPos.coords.heading+")";
-							tx.executeSql(qr);	
-						},dbError,insertOK);	
-					}				
-				}
-				catch(er) {
-					appendLog(er.toString());			
-				}
+				// inserisci punto in DB trips.plots
+				insertPlot();
 			}
 		}
 	}
 }
 
-function tbOK() {
+
+function insertPlot() {
 	dbTrips.transaction(function(tx) {
-		var tms = new Date().getTime();
-		tms = Math.floor(tms/1000);
-		var qr =  "INSERT INTO plots(tms,lat,long,speed,rotta) values(";
+	var tms = new Date().getTime();
+	tms = Math.floor(tms/1000);
+	var qr = "INSERT INTO plots(tms,lat,long,speed,rotta) values(";
 		qr += tms+","+pPos.coords.latitude+","+pPos.coords.longitude+",";
 		qr += pPos.coords.speed+","+pPos.coords.heading+")";
-		tx.executeSql(qr);	
+	tx.executeSql(qr);	
 	},dbError,insertOK);	
 }
+
+
+function openDBtrips() {
+	try {
+		dbTrips = window.openDatabase("trips","1.0","DB viaggi",300000);
+		dbTrips.transaction(function(tx) {
+			tx.executeSql('CREATE TABLE IF NOT EXISTS plots (\
+						_id INTEGER PRIMARY KEY AUTOINCREMENT,tms integer,\
+						lat float,long float,speed integer,rotta float)');
+		},dbError,tbOK);	
+	}
+	catch(er) {
+		appendLog(er.toString());			
+	}	
+}
+
+
+function tbOK() {
+	appendLog(getTms()+" Aperto DB trips");	
+}
+
 
 function insertOK() {
 	nump++;
 	appendLog(getTms()+" Inserito punto "+nump);
 }
 
+
 function dbError(er) {
-	appendLog(getTms()+" DB error: "+er.toString());		
+	appendLog(getTms()+" DB error: "+er.message);
+	return false;
 }
+
 
 function onPosKO(error) {
 	appendLog(getTms()+" GPS error: "+error.message);
 }
+
 
 function checkDB() {
 	dbTrips = window.openDatabase("trips","1.0","DB viaggi",300000);
@@ -148,9 +204,11 @@ function checkDB() {
 	},dbError);
 }
 
+
 function deleteOK(rows) {
-	appendLog(getTms()+" Cancellati "+rows+" record in DB");
+	appendLog(getTms()+" Cancellati records in DB");
 }
+
 
 function getRecsOK(tx,res) {
 	DBchecked = true;
@@ -221,6 +279,110 @@ function getRecsOK(tx,res) {
 	}
 }
 
+
+function showOK(tx,res) {
+	if(res.rows.length < 1) {
+		appendLog(getTms()+" Non ci sono viaggi registrati");
+		return;	
+	}
+	
+	try {
+	var Position = new Array();
+	var Pdate = new Array();
+	var linePath = new Array();
+	var Marker;
+	
+	for(var i=0;i<res.rows.length-1;i++) {
+		var lat = res.rows.item(i).lat;
+		var lon = res.rows.item(i).long;
+		var latLng = {lat: lat, lng: lon};
+		var data = new Date(res.rows.item(i).tms*1000);
+		var datas = data.getFullYear()+'/'+(data.getMonth()+1)+'/'+data.getDate()+' '+
+				data.getHours()+':'+data.getMinutes()+':'+data.getSeconds();
+		Pdate.push(datas);		
+		var attr = {speed: res.rows.item(i).speed, heading: res.rows.item(i).rotta};
+		Position.push(attr);	
+		var punto = new google.maps.LatLng(latLng.lat,latLng.lng);
+		linePath.push(punto);
+	}
+	lat = res.rows.item(i).lat;
+	lon = res.rows.item(i).long;
+	latLng = {lat: lat, lng: lon};
+	var mapOptions ={center: latLng,panControl: false,zoomControl: true, 
+					zoom: 16,mapTypeId: google.maps.MapTypeId.ROADMAP};
+	var map = new google.maps.Map(document.getElementById('map'),mapOptions);
+	var	lineOpt = {path:linePath,strokeWeight:3,strokeColor:'#FF0000',strokeOpacity:0.8};
+	Marker = new google.maps.Marker({position:linePath[0],icon:'img/marker.png',map: map, clickable: true});
+	var cont =  "<div style='font-size:10px; width=100px; height=70px'>";
+	cont += Pdate[0]+'<br>';
+	cont += 'Vel: '+Math.floor(Position[0].speed)+'Km/h<br>';
+	cont += 'Dir: '+Math.floor(Position[0].heading*10)/10+'<br>';			   
+	
+	Marker.info = new google.maps.InfoWindow({
+  		content: cont
+	});
+	google.maps.event.addListener(Marker, 'click', function() {
+		var marker_map = this.getMap();
+    	this.info.open(marker_map,this);
+	});
+	
+	var polyline = new google.maps.Polyline(lineOpt);
+	for(var i=1;i<linePath.length-1;i++) {
+		Marker = new google.maps.Marker({position:linePath[i],icon:'img/marker-gold.png',map: map, clickable: true});
+		cont =  "<div style='font-size:10px; width=100px; height=70px'>";
+		cont += Pdate[i]+'<br>';
+		cont += 'Vel: '+Math.floor(Position[i].speed)+'Km/h<br>';
+		cont += 'Dir: '+Math.floor(Position[i].heading*10)/10+'<br>';			   
+		Marker.info = new google.maps.InfoWindow({
+  			content: cont
+		});
+		google.maps.event.addListener(Marker, 'click', function() {
+			var marker_map = this.getMap();
+    		this.info.open(marker_map,this);
+		});
+	}
+	if(linePath.length > 2) {
+		Marker = new google.maps.Marker({position:linePath[i],icon:'img/marker-green.png',map: map, clickable: true});
+		cont =  "<div style='font-size:10px; width=100px; height=70px'>";
+		cont += Pdate[i]+'<br>';
+		cont += 'Vel: '+Math.floor(Position[i].speed)+'Km/h<br>';
+		cont += 'Dir: '+Math.floor(Position[i].heading*10)/10+'<br>';			   
+		Marker.info = new google.maps.InfoWindow({
+  			content: cont
+		});
+		google.maps.event.addListener(Marker, 'click', function() {
+			var marker_map = this.getMap();
+    		this.info.open(marker_map,this);
+		});
+	}
+	polyline.setMap(map);
+	appendLog(getTms()+" Mostro viaggio registrato");
+	navigator.notification.beep(1);	
+	}
+	catch(e) {
+		appendLog(getTms()+" "+e.toString());
+	}
+	
+}
+
+
+function showPlots() {
+	
+	if(dbTrips == null) {
+		appendLog(getTms()+" Apro DB sqlite");
+		dbTrips = window.openDatabase("trips","1.0","DB viaggi",300000);
+	}
+	dbTrips.transaction(function(tx) {
+		tx.executeSql("SELECT tms,lat,long,speed,rotta FROM plots ORDER BY tms",
+		[],showOK,dbError);	
+	},txError);
+}
+
+function txError(er) {
+	appendLog(getTms()+" TX_SQL error: "+er.message);
+	return false;
+}
+
 function prepData(position) {
 	/** generarecord di 6 campi:
 	[id] [bigint] NOT NULL,
@@ -254,7 +416,7 @@ function sendMessage(msg) {
 }
  
 function init() {
-	var width = $(window).width();
+	//var width = $(window).width();
 	var height = $(window).height();
 	height = Math.floor(height*0.5)+'px';
 	document.getElementById('map').style.height = height;
@@ -277,7 +439,7 @@ function init() {
 					acked = true;
 					if(recSent)	 {
 						recSent = false;
-						alert("Cancello dati locali");
+						//alert("Cancello dati locali");
 						dbTrips.transaction(function(tx) {
 							tx.executeSql("DELETE FROM plots");	
 						},dbError,deleteOK);
@@ -304,13 +466,17 @@ function init() {
  			}
 			else {
 				appendLog(getTms()+" Connessione inagibile");
+				// se DB trips contiene dati rendi visibile la mappa che li contiene
+				showPlots();
 			}
  		}
 	}
 	else {
 		appendLog(getTms()+" Rete non disponibile");
 		acked = true;
+		openDBtrips();
 	}
+	
 	var successCallback = function(success) {
 		appendLog("MioNumTel: "+success.phoneNumber);
 		myId = success.phoneNumber;
@@ -342,4 +508,3 @@ function init() {
 </div>
 </body>
 </html>
- 
