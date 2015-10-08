@@ -63,6 +63,10 @@
                         {
                             "xml": "<feature name=\"SQLitePlugin\"><param name=\"android-package\" value=\"io.liteglue.SQLitePlugin\" /></feature>",
                             "count": 1
+                        },
+                        {
+                            "xml": "<feature name=\"Insomnia\"><param name=\"android-package\" value=\"nl.xservices.plugins.Insomnia\" /></feature>",
+                            "count": 1
                         }
                     ]
                 }
@@ -154,6 +158,9 @@
             "PACKAGE_NAME": "com.example.tripclient"
         },
         "io.litehelpers.cordova.sqlite": {
+            "PACKAGE_NAME": "com.example.tripclient"
+        },
+        "nl.x-services.plugins.insomnia": {
             "PACKAGE_NAME": "com.example.tripclient"
         }
     },

@@ -416,6 +416,13 @@ function sendMessage(msg) {
 }
  
 function init() {
+	try {
+		window.plugins.insomnia.keepAwake();
+		appendLog(getTms()+" Settato schermo sempre on.");
+	}
+	catch(er) {
+		appendLog(getTms()+" Set schermo sempre on fallito.");
+	}
 	//var width = $(window).width();
 	var height = $(window).height();
 	height = Math.floor(height*0.5)+'px';

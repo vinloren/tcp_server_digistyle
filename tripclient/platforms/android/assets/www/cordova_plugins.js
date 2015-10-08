@@ -278,6 +278,13 @@ module.exports = [
         "clobbers": [
             "SQLitePlugin"
         ]
+    },
+    {
+        "file": "plugins/nl.x-services.plugins.insomnia/www/Insomnia.js",
+        "id": "nl.x-services.plugins.insomnia.Insomnia",
+        "clobbers": [
+            "window.plugins.insomnia"
+        ]
     }
 ];
 module.exports.metadata = 
@@ -297,7 +304,8 @@ module.exports.metadata =
     "cordova-plugin-websocket": "0.10.0",
     "cordova-plugin-sim": "1.0.2",
     "org.apache.cordova.dialogs": "0.3.0",
-    "io.litehelpers.cordova.sqlite": "0.7.10"
+    "io.litehelpers.cordova.sqlite": "0.7.10",
+    "nl.x-services.plugins.insomnia": "4.0.1"
 }
 // BOTTOM OF METADATA
 });

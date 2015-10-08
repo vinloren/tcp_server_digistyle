@@ -153,7 +153,7 @@ function insertPlot() {
 	tms = Math.floor(tms/1000);
 	var qr = "INSERT INTO plots(tms,lat,long,speed,rotta) values(";
 		qr += tms+","+pPos.coords.latitude+","+pPos.coords.longitude+",";
-		qr += pPos.coords.speed+","+pPos.coords.heading+")";
+		qr += Math.floor(pPos.coords.speed*3.6)+","+pPos.coords.heading+")";
 	tx.executeSql(qr);	
 	},dbError,insertOK);	
 }
@@ -416,6 +416,13 @@ function sendMessage(msg) {
 }
  
 function init() {
+	try {
+		window.plugins.insomnia.keepAwake();
+		appendLog(getTms()+" Settato schermo sempre on.");
+	}
+	catch(er) {
+		appendLog(getTms()+" Set schermo sempre on fallito.");
+	}
 	//var width = $(window).width();
 	var height = $(window).height();
 	height = Math.floor(height*0.5)+'px';

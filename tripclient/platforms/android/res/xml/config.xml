@@ -46,6 +46,9 @@
     <feature name="SQLitePlugin">
         <param name="android-package" value="io.liteglue.SQLitePlugin" />
     </feature>
+    <feature name="Insomnia">
+        <param name="android-package" value="nl.xservices.plugins.Insomnia" />
+    </feature>
     <preference name="AndroidPersistentFileLocation" value="Internal" />
     <allow-intent href="market:*" />
     <name>Tripsclient</name>
