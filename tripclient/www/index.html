@@ -66,20 +66,20 @@ function onPosOK(position) {
 	var precision = position.coords.accuracy;
 	//console.log("Position precision = mt. "+Math.floor(precision));
 	appendLog(getTms()+" Punto OK +/- mt: "+Math.floor(precision));
-	if(precision < 64) {
+	if(precision < 32) {
 		pPos = position;
 		var time = new Date().getTime();
-		if(pPos.heading == null) {
-			pPos.heading = 0;
+		if(pPos.coords.heading == null) {
+			pPos.coords.heading = 0;
 		}
-		var delta = pPos.heading - lastRoute;
+		var delta = pPos.coords.heading - lastRoute;
 		// scarta punto se rotta attuale < +- 11 gradi rotta precedente
 		// e tempo ultimo punto < 30 sec. da tempo attuale
 		if(delta*delta < 121 && 		 
 			(time - lastTime) < 30000) { 
 			return;						 
 		}	
-		lastRoute = pPos.heading;
+		lastRoute = pPos.coords.heading;
 		lastTime = time;
 		if(acked) {
 			if(wifi) {
