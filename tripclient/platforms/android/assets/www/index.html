@@ -79,7 +79,7 @@ function onPosOK(position) {
 			(time - lastTime) < 30000) { 
 			return;						 
 		}	
-		lastRoute = pPos.heading;
+		lastRoute = pPos.coords.heading;
 		lastTime = time;
 		if(acked) {
 			if(wifi) {
