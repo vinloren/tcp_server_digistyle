@@ -82,6 +82,7 @@ function onPosOK(position) {
 		lastRoute = pPos.coords.heading;
 		lastTime = time;
 		if(acked) {
+			var kmperc = 0;
 			if(wifi) {
 				try {			
 					var latLng = {lat: position.coords.latitude, lng: position.coords.longitude};
@@ -109,7 +110,9 @@ function onPosOK(position) {
 						cont =  "<div style='font-size:10px; width=100px; height=70px'>";
 						cont += Pdate[i]+'<br>';
 						cont += 'Vel: '+Math.floor(Position[i].coords.speed)+'Km/h<br>';
-						cont += 'Dir: '+Math.floor(Position[i].coords.heading*10)/10+'<br>';			   
+						cont += 'Dir: '+Math.floor(Position[i].coords.heading*10)/10+'<br>';	
+						kmperc += Distanza(Position[i].coords.latitude,Position[i].coords.longitude,Position[i-1].coords.latitude,Position[i-1].coords.longitude);		   
+						cont += 'Tot.Km: '+Math.floor(kmperc*100)/100;
 						marker.info = new google.maps.InfoWindow({content: cont});
 						google.maps.event.addListener(marker, 'click', function() {
 							var marker_map = this.getMap();
@@ -122,7 +125,9 @@ function onPosOK(position) {
 						cont =  "<div style='font-size:10px; width=100px; height=70px'>";
 						cont += Pdate[i]+'<br>';
 						cont += 'Vel: '+Math.floor(Position[i].coords.speed)+'Km/h<br>';
-						cont += 'Dir: '+Math.floor(Position[i].coords.heading*10)/10+'<br>';			   
+						cont += 'Dir: '+Math.floor(Position[i].coords.heading*10)/10+'<br>';	
+						kmperc += Distanza(Position[i].coords.latitude,Position[i].coords.longitude,Position[i-1].coords.latitude,Position[i-1].coords.longitude);		   
+						cont += 'Tot.Km: '+Math.floor(kmperc*100)/100;		   
 						marker.info = new google.maps.InfoWindow({content: cont});
 						google.maps.event.addListener(marker, 'click', function() {
 							var marker_map = this.getMap();
@@ -279,6 +284,22 @@ function getRecsOK(tx,res) {
 	}
 }
 
+function Distanza(lat1, lon1, lat2, lon2) {
+  var R = 6371; // km
+  var dLat = (lat2 - lat1).toRad();
+  var dLon = (lon2 - lon1).toRad(); 
+  var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(lat1.toRad()) * Math.cos(lat2.toRad()) * 
+          Math.sin(dLon / 2) * Math.sin(dLon / 2); 
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); 
+  var d = R * c;
+  return d;
+}
+
+Number.prototype.toRad = function() {
+  return this * Math.PI / 180;
+}
+
 
 function showOK(tx,res) {
 	if(res.rows.length < 1) {
@@ -291,6 +312,7 @@ function showOK(tx,res) {
 	var Pdate = new Array();
 	var linePath = new Array();
 	var Marker;
+	var tlen = 0;
 	
 	for(var i=0;i<res.rows.length-1;i++) {
 		var lat = res.rows.item(i).lat;
@@ -300,7 +322,8 @@ function showOK(tx,res) {
 		var datas = data.getFullYear()+'/'+(data.getMonth()+1)+'/'+data.getDate()+' '+
 				data.getHours()+':'+data.getMinutes()+':'+data.getSeconds();
 		Pdate.push(datas);		
-		var attr = {speed: res.rows.item(i).speed, heading: res.rows.item(i).rotta};
+		var attr = {speed: res.rows.item(i).speed, heading: res.rows.item(i).rotta,
+				    lat: res.rows.item(i).lat, lon: res.rows.item(i).long};
 		Position.push(attr);	
 		var punto = new google.maps.LatLng(latLng.lat,latLng.lng);
 		linePath.push(punto);
@@ -316,7 +339,7 @@ function showOK(tx,res) {
 	var cont =  "<div style='font-size:10px; width=100px; height=70px'>";
 	cont += Pdate[0]+'<br>';
 	cont += 'Vel: '+Math.floor(Position[0].speed)+'Km/h<br>';
-	cont += 'Dir: '+Math.floor(Position[0].heading*10)/10+'<br>';			   
+	cont += 'Dir: '+Math.floor(Position[0].heading*10)/10+'<br>';	   
 	
 	Marker.info = new google.maps.InfoWindow({
   		content: cont
@@ -332,7 +355,9 @@ function showOK(tx,res) {
 		cont =  "<div style='font-size:10px; width=100px; height=70px'>";
 		cont += Pdate[i]+'<br>';
 		cont += 'Vel: '+Math.floor(Position[i].speed)+'Km/h<br>';
-		cont += 'Dir: '+Math.floor(Position[i].heading*10)/10+'<br>';			   
+		cont += 'Dir: '+Math.floor(Position[i].heading*10)/10+'<br>';	
+		tlen += Distanza(Position[i].lat,Position[i].lon,Position[i-1].lat,Position[i-1].lon);
+		cont += 'Tot.Km: '+Math.floor(tlen*100)/100;			   
 		Marker.info = new google.maps.InfoWindow({
   			content: cont
 		});
@@ -346,7 +371,9 @@ function showOK(tx,res) {
 		cont =  "<div style='font-size:10px; width=100px; height=70px'>";
 		cont += Pdate[i]+'<br>';
 		cont += 'Vel: '+Math.floor(Position[i].speed)+'Km/h<br>';
-		cont += 'Dir: '+Math.floor(Position[i].heading*10)/10+'<br>';			   
+		cont += 'Dir: '+Math.floor(Position[i].heading*10)/10+'<br>';	
+		tlen += Distanza(Position[i].lat,Position[i].lon,Position[i-1].lat,Position[i-1].lon);
+		cont += 'Tot.Km: '+Math.floor(tlen*100)/100;			   
 		Marker.info = new google.maps.InfoWindow({
   			content: cont
 		});
