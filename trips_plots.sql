@@ -1,0 +1,47 @@
+USE [trips]
+GO
+
+/****** Object:  Table [dbo].[plots]    Script Date: 15/10/2015 12:56:23 ******/
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [dbo].[plots](
+	[seq] [int] IDENTITY(1,1) NOT NULL,
+	[id] [bigint] NOT NULL,
+	[tms] [int] NOT NULL,
+	[lat] [real] NOT NULL,
+	[long] [real] NOT NULL,
+	[speed] [smallint] NOT NULL,
+	[rotta] [real] NOT NULL,
+PRIMARY KEY CLUSTERED 
+(
+	[seq] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]
+
+GO
+
+/****** Object:  Index [tms_ndx]    Script Date: 15/10/2015 13:03:23 ******/
+CREATE NONCLUSTERED INDEX [tms_ndx] ON [dbo].[plots]
+(
+	[tms] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON)
+GO
+
+
+/****** Object:  Index [IDndx]    Script Date: 15/10/2015 13:03:06 ******/
+CREATE NONCLUSTERED INDEX [IDndx] ON [dbo].[plots]
+(
+	[id] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, DROP_EXISTING = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON)
+GO
+
+/****** Object:  Index [PK__plots__DDDFBCBEEEAADD1B]    Script Date: 15/10/2015 13:02:50 ******/
+ALTER TABLE [dbo].[plots] ADD PRIMARY KEY CLUSTERED 
+(
+	[seq] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, SORT_IN_TEMPDB = OFF, IGNORE_DUP_KEY = OFF, ONLINE = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON)
+GO

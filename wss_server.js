@@ -24,6 +24,7 @@ catch(ex) {
 	writeStream = fs.openSync('./wsserver.log','r+',0x1b6);
 }
 var carica = [];
+var leggiDB = [];
 var connSql = [];
 var Connection = require('tedious').Connection;
 var Request = require('tedious').Request;
@@ -42,7 +43,8 @@ var config = {
         server: 'localhost',
         options: {
             port: '1433',
-            database: 'trips'
+            database: 'trips',
+			rowCollectionOnDone: true
         }
     };
 
@@ -189,7 +191,42 @@ for (var i=0;i<MAXCONN;i++) {
 	"	}; "+
 	"	var request = new Request(qr,callback); "+
 	"	setBusy(sqlobj); "+
-    "  	csql.execSql(request);}"
+    "  	csql.execSql(request);}";
+	
+	leggiDB[i] = " (qr,sqlobj,conx) { "+
+		"var csql = sqlobj.conn;"+
+		"var conid = conx.id;"+
+		"var buf = \'\';"+
+       	"var callback = function(err, rowCount, rows) { "+
+		"try { "+				
+       	"	if (err) { "+
+				"   clearBusy(sqlobj); "+
+                " 	util.log(conx.remotePort+': '+err); "+
+				" 	conx.ws.send(\'nack\'); "+	
+				" 	logga(conid+\": \"+err.toString()+\"\\n\"); } "+
+				"else { "+
+				"	clearBusy(sqlobj); "+
+                "  	util.log(conid+': '+ rowCount + ' rows');"+
+				"  	conx.ws.send(buf);"+
+				"   util.log('\inviato: \'+buf);"+
+				"   logga(conid+\': inviato \'+buf+'\\n');}"+		
+        "	}	catch(xcp) {"+
+			"	util.log(conid+\" sql Ok, remote socket caduto.\");"+	
+			"	logga(conid+\" sql Ok, remote socket caduto.\\n\");"+"}"+
+	"	}; "+
+	"	var request = new Request(qr,callback); "+
+	"   request.on('row',function(columns){"+
+	" 	buf += \'\\n\';"+
+	
+	
+	"   columns.forEach(function(column) {"+
+    "     if (column.value === null) {"+
+	"       util.log(\'NULL\');"+
+	"     } else {"+
+    "        buf += column.value + \';\';"+
+    "   }})});"+
+	"	setBusy(sqlobj); "+
+    "  	csql.execSql(request);}";
 }
 
 
@@ -241,22 +278,63 @@ wss.on('connection',function(ws) {
 		}
 		util.log("Rcv da "+clients[i].id+": "+message);
 		
-		try {
-			var num = parseInt(message.substring(0,10));	
-		}
-		catch(err) {
-			util.log("record non valido, rispondo nack");
-			ws.send('nack');
-			return;
-		}
+		if(message.substring(0,6) == 'giorni' ||
+			message.substring(0,3) == 'ids' ||
+			message.substring(0,6) == 'mostra') { // richiesta indice giorni / ids in trips.plots o mostra viaggio
+			var i = 0;
+			for(i=0;i<connSql.length;i++) {
+				if(!connSql[i].busy) {
+					break;
+				}
+			}
 		
-		if(!insertData(message,i)) {
-			ws.send('nack');
-			util.log(clients[i].id+" Risposto nack a client causa errore formato record");
-			logga(clients[i].id+': Risposto nack a client causa errore formato record\n');
-		}
+			if(i == connSql.length) {
+				// tutte le conn sql occupate, rispondi nack
+				logga('(getndx) sql conns tutte occupate, rispondo nack\n');
+				return false;
+			}
+			util.log('leggoDB conn'+conndx); 
+			eval("function readDB "+leggiDB[conndx]);
+			/**	[seq] [int] IDENTITY(1,1) NOT NULL,
+				[id] [bigint] NOT NULL,
+				[tms] [int] NOT NULL,
+				[lat] [real] NOT NULL,
+				[long] [real] NOT NULL,
+				[speed] [smallint] NOT NULL,
+				[rotta] [real] NOT NULL  **/
+			var qr;
+			if(message.substring(0,6) == 'giorni') {
+				qr = "SELECT DISTINCT (tms/86400)*86400 FROM plots ORDER BY (tms/86400)*86400 DESC";
+			}
+			else if(message.substring(0,3) == 'ids') {
+				qr = "SELECT DISTINCT id FROM plots ORDER BY id";
+			}
+			else {
+				var params = message.split(';');
+				var start = parseInt(params[1]);
+				var end = parseInt(params[1])+86400;
+				qr = "SELECT tms,lat,long,speed,rotta FROM plots WHERE tms >"+start;
+				qr += " AND tms <"+end+" AND id="+params[2]+" ORDER BY tms";
+			}
+			readDB(qr,connSql[i],clients[conndx]);
+		}	
+		else {
 		
-		//ws.send('ack');
+			try {
+				var num = parseInt(message.substring(0,10));	
+			}
+			catch(err) {
+				util.log("record non valido, rispondo nack");
+				ws.send('nack');
+				return;
+			}
+		
+			if(!insertData(message,i)) {
+				ws.send('nack');
+				util.log(clients[i].id+" Risposto nack a client causa errore formato record");
+				logga(clients[i].id+': Risposto nack a client causa errore formato record\n');
+			}
+		}
 	});
 	
 	ws.on('close', function() {

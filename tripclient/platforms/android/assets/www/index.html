@@ -24,7 +24,7 @@ var error = false;
 var first = true;
 var acked = false;
 var plotcount = 0;
-var maxcount = 10;
+var maxcount = 8;
 var ws;
 var linePath = [];
 var nump  = 0;
@@ -34,6 +34,8 @@ var lastTime  = 0;
 var plots = [];
 var Position = [];
 var Pdate = [];
+var WATCHpos = null;
+var lastmsgsent = "";
 
 function appendLog(msg) {
 	plotcount++;
@@ -76,7 +78,7 @@ function onPosOK(position) {
 		// scarta punto se rotta attuale < +- 11 gradi rotta precedente
 		// e tempo ultimo punto < 30 sec. da tempo attuale
 		if(delta*delta < 121 && 		 
-			(time - lastTime) < 30000) { 
+			(time - lastTime) < 60000) { 
 			return;						 
 		}	
 		lastRoute = pPos.coords.heading;
@@ -389,7 +391,100 @@ function showOK(tx,res) {
 	catch(e) {
 		appendLog(getTms()+" "+e.toString());
 	}
+}
+
+
+function showViaggio(resp) {
+	/**	[tms] [int] NOT NULL,
+		[lat] [real] NOT NULL,
+		[long] [real] NOT NULL,
+		[speed] [smallint] NOT NULL,
+		[rotta] [real] NOT NULL  **/
 	
+	try {
+	var Position = new Array();
+	var Pdate = new Array();
+	var linePath = new Array();
+	var Marker;
+	var tlen = 0;
+	var riga;
+	
+	for(var i=0;i<resp.length-1;i++) {
+		riga = resp[i].split(';');
+		var lat = parseFloat(riga[1]);
+		var lon = parseFloat(riga[2]);
+		var latLng = {lat: lat, lng: lon};
+		var data = new Date(riga[0]*1000);
+		var datas = data.getFullYear()+'/'+(data.getMonth()+1)+'/'+data.getDate()+' '+
+				data.getHours()+':'+data.getMinutes()+':'+data.getSeconds();
+		Pdate.push(datas);		
+		var attr = {speed: parseInt(riga[3]), heading: parseFloat(riga[4]),
+				    lat: parseFloat(riga[1]), lon: parseFloat(riga[2])};
+		Position.push(attr);	
+		var punto = new google.maps.LatLng(latLng.lat,latLng.lng);
+		linePath.push(punto);
+	}
+	riga =  resp[i].split(';');
+	lat = parseFloat(riga[1]);
+	lon = parseFloat(riga[2]);
+	latLng = {lat: lat, lng: lon};
+	var mapOptions ={center: latLng,panControl: false,zoomControl: true, 
+					zoom: 16,mapTypeId: google.maps.MapTypeId.ROADMAP};
+	var map = new google.maps.Map(document.getElementById('map'),mapOptions);
+	var	lineOpt = {path:linePath,strokeWeight:3,strokeColor:'#FF0000',strokeOpacity:0.8};
+	Marker = new google.maps.Marker({position:linePath[0],icon:'img/marker.png',map: map, clickable: true});
+	var cont =  "<div style='font-size:10px; width=100px; height=70px'>";
+	cont += Pdate[0]+'<br>';
+	cont += 'Vel: '+Math.floor(Position[0].speed)+'Km/h<br>';
+	cont += 'Dir: '+Math.floor(Position[0].heading*10)/10+'<br>';	   
+	
+	Marker.info = new google.maps.InfoWindow({
+  		content: cont
+	});
+	google.maps.event.addListener(Marker, 'click', function() {
+		var marker_map = this.getMap();
+    	this.info.open(marker_map,this);
+	});
+	
+	var polyline = new google.maps.Polyline(lineOpt);
+	for(var i=1;i<linePath.length-1;i++) {
+		Marker = new google.maps.Marker({position:linePath[i],icon:'img/marker-gold.png',map: map, clickable: true});
+		cont =  "<div style='font-size:10px; width=100px; height=70px'>";
+		cont += Pdate[i]+'<br>';
+		cont += 'Vel: '+Math.floor(Position[i].speed)+'Km/h<br>';
+		cont += 'Dir: '+Math.floor(Position[i].heading*10)/10+'<br>';	
+		tlen += Distanza(Position[i].lat,Position[i].lon,Position[i-1].lat,Position[i-1].lon);
+		cont += 'Tot.Km: '+Math.floor(tlen*100)/100;			   
+		Marker.info = new google.maps.InfoWindow({
+  			content: cont
+		});
+		google.maps.event.addListener(Marker, 'click', function() {
+			var marker_map = this.getMap();
+    		this.info.open(marker_map,this);
+		});
+	}
+	if(linePath.length > 2) {
+		Marker = new google.maps.Marker({position:linePath[i],icon:'img/marker-green.png',map: map, clickable: true});
+		cont =  "<div style='font-size:10px; width=100px; height=70px'>";
+		cont += Pdate[i]+'<br>';
+		cont += 'Vel: '+Math.floor(Position[i].speed)+'Km/h<br>';
+		cont += 'Dir: '+Math.floor(Position[i].heading*10)/10+'<br>';	
+		tlen += Distanza(Position[i].lat,Position[i].lon,Position[i-1].lat,Position[i-1].lon);
+		cont += 'Tot.Km: '+Math.floor(tlen*100)/100;			   
+		Marker.info = new google.maps.InfoWindow({
+  			content: cont
+		});
+		google.maps.event.addListener(Marker, 'click', function() {
+			var marker_map = this.getMap();
+    		this.info.open(marker_map,this);
+		});
+	}
+	polyline.setMap(map);
+	navigator.notification.beep(1);	
+	}
+	catch(e) {
+		alert('Errore in showViaggio()\n'+e.toString());
+	}	
 }
 
 
@@ -443,6 +538,7 @@ function sendMessage(msg) {
 }
  
 function init() {
+	$('#selviaggi').hide();
 	try {
 		window.plugins.insomnia.keepAwake();
 		appendLog(getTms()+" Settato schermo sempre on.");
@@ -452,7 +548,7 @@ function init() {
 	}
 	//var width = $(window).width();
 	var height = $(window).height();
-	height = Math.floor(height*0.5)+'px';
+	height = Math.floor(height*0.47)+'px';
 	document.getElementById('map').style.height = height;
 	// vedi se rete est accessibile
 	var netState = navigator.network.connection.type;
@@ -487,6 +583,49 @@ function init() {
      			appendLog(getTms()+" Ricevuto nack, chiudo connessione");
      			ws.close();
    			} 
+			else { // eventuale risposta a 'giorni' ids' o 'mostra'
+				var resp;
+				var value;
+				if(lastmsgsent == 'giorni') {
+					var giorno;	
+					var data;
+					resp = e.data.split('\n');
+					for(var i=1;i<resp.length;i++) {
+					  value = resp[i].replace(';','');
+					  data = new Date(value*1000);
+					  giorno = data.getFullYear()+'/'+(data.getMonth()+1)+'/'+data.getDate();
+					  $("select[name='select-data']").append('<option value="'+value+'" style="font-size:10px">'+giorno+'</option>');
+					}
+					acked = true;
+					navigator.notification.beep(1);	
+					alert("Scelta data pronta");
+					$('#btdata').hide();
+				}
+				else if(lastmsgsent == 'ids   ') {
+					resp = e.data.split('\n');
+					for(var i=1;i<resp.length;i++) {
+					  value = resp[i].replace(';','');
+					  $("select[name='select-ids']").append('<option value="'+value+'" style="font-size:10px">'+value+'</option>');
+					}
+					acked = true;
+					navigator.notification.beep(1);	
+					alert("Scelta ids pronta");
+					$("#btids").hide();
+				}
+				else if(lastmsgsent == 'mostra') {
+					resp = e.data.split('\n');
+					acked = true;
+					if(resp.length < 2) {
+						alert("Nessun viaggio trovato!");
+						return;
+					}
+					resp.splice(0,1); // primo elemento è nullo
+					showViaggio(resp);
+				}
+				else {
+					alert('Scarto: '+e.data);
+				}		
+			}
  		}
  
  		ws.onerror = function(e) { 
@@ -501,12 +640,16 @@ function init() {
 			else {
 				appendLog(getTms()+" Connessione inagibile");
 				// se DB trips contiene dati rendi visibile la mappa che li contiene
+				$('#bottoni').hide();
+				maxcount += 2;
 				showPlots();
 			}
  		}
 	}
 	else {
 		appendLog(getTms()+" Rete non disponibile");
+		$('#bottoni').hide();
+		maxcount += 2;
 		acked = true;
 		openDBtrips();
 	}
@@ -516,29 +659,91 @@ function init() {
 		myId = success.phoneNumber;
 		appendLog(getTms()+" Cerco mia posizione GPS");
 		var options = {enableHighAccuracy: true, maximumAge: 10000, timeout: 30000};
-		navigator.geolocation.watchPosition(onPosOK,onPosKO,options);
+		WATCHpos = navigator.geolocation.watchPosition(onPosOK,onPosKO,options);
 	}
 	
 	var errorCallback = function(error) {
 		appendLog("Ricerca MioNumTel fallita");
 		appendLog(getTms()+" Cerco mia posizione GPS");
-		navigator.geolocation.watchPosition(onPosOK,onPosKO,options);
+		var options = {enableHighAccuracy: true, maximumAge: 10000, timeout: 30000};
+		WATCHpos = navigator.geolocation.watchPosition(onPosOK,onPosKO,options);
 	}
 	
 	window.plugins.sim.getSimInfo(successCallback, errorCallback);
+}
+ 
+function getDateViaggi() {
+	$('#messages').hide();
+	$('#selviaggi').show();
+	if(WATCHpos != null) {
+		navigator.geolocation.clearWatch(WATCHpos);
+	}
+	if(acked) {
+		acked = false;
+		lastmsgsent = 'giorni';
+		ws.send(lastmsgsent);
+	}
+}
+
+function getIDsViaggi() {
+	$('#messages').hide();
+	$('#selviaggi').show();
+	if(WATCHpos != null) {
+		navigator.geolocation.clearWatch(WATCHpos);
+	}
+	if(acked) {
+		acked = false;
+		lastmsgsent = 'ids   ';
+		ws.send(lastmsgsent);
+	}
+}
+
+function mostraViaggio() {
+	if(acked) {
+		if($('select[name="select-data"]').val() == null) {
+			return;
+		}
+		if($('select[name="select-ids"]').val() == null) {
+			return;
+		}
+		lastmsgsent = 'mostra';
+		acked = false;
+		var param = $('select[name="select-data"]').val()+';'+ $('select[name="select-ids"]').val();
+		ws.send(lastmsgsent+';'+param);
+	}
+}
+
+function Restart() {
+	ws.close();
+	window.location.reload();
 }
 
 </script>
 <script type="text/javascript" src="js/index.js"></script>
 </head>
 <body>
-<li</li>
 <div data-role="page" id="connection-log">
- <div data-role="header"><h3>Traccia Viaggi</h3></div>
+ <div data-role="header"><h4>Traccia Viaggi</h4></div>
  <div data-role="content" >
   <ul style="font-size:11px" id="messages" data-role="listview" data-inset="true"></ul>
+  <div id="selviaggi">
+	<div class="ui-field-contain">
+		<label for="select-data" class="select" style="font-size:10px">Scegli data:</label>
+		<select name="select-data" id="select-data" data-mini="true"></select>
+    </div>
+	<div class="ui-field-contain">
+		<label for="select-ids" class="select" style="font-size:10px">Scegli IDs:</label>
+		<select name="select-ids" id="select-ids" data-mini="true"></select>
+	</div>
+  </div>
  </div>
  <div style="border: 4px solid #8AC007" id="map"></div>
+ <div class="ui-grid-c" id="bottoni">
+	<div class="ui-block-a"><button id="btdata" style="font-size:10px" type="button" data-theme="a" onclick="getDateViaggi()">Data_Viag</button></div>
+	<div class="ui-block-b"><button id="btids" style="font-size:10px" type="button" data-theme="a" onclick="getIDsViaggi()">IDs_Viagg</button></div>
+	<div class="ui-block-c"><button style="font-size:10px" type="button" data-theme="a" onclick="mostraViaggio()">Mostra</button></div>
+	<div class="ui-block-d"><button style="font-size:10px" type="button" data-theme="a" onclick="Restart()">Reset</button></div>
+</div>
 </div>
 </body>
 </html>
