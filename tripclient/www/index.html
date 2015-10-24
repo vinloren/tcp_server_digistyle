@@ -4,7 +4,7 @@
 <title>Traccia Viaggi</title>
 <!-- mia google api key = AIzaSyASIusfC3oS5xTdXW1gkXzmrXBrksyZx_A -->
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: https://ssl.gstatic.com 'unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src *; connect-src ws://vinloren.ns0.it:8124">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: https://ssl.gstatic.com 'unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src *; connect-src ws://tracktravel-vinloren.rhcloud.com:8000">
 <meta name="viewport" content="user-scalable=no,initial-scale=1,
 	maximum-scale=1,minimum-scale=1,width=device-width">
 <link rel="stylesheet" href="jquery/jquery.mobile-1.4.5.min.css" type="text/css">
@@ -397,7 +397,7 @@ function showOK(tx,res) {
 function showViaggio(resp) {
 	/**	[tms] [int] NOT NULL,
 		[lat] [real] NOT NULL,
-		[long] [real] NOT NULL,
+		[lon] [real] NOT NULL,
 		[speed] [smallint] NOT NULL,
 		[rotta] [real] NOT NULL  **/
 	
@@ -554,7 +554,7 @@ function init() {
 	var netState = navigator.network.connection.type;
 	if(netState == 'wifi') {
 		wifi = true;
- 		ws = new WebSocket("ws://vinloren.ns0.it:8124");
+ 		ws = new WebSocket("ws://tracktravel-vinloren.rhcloud.com:8000");
  		var error = false;
 
  		ws.onopen = function(e) {
