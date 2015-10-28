@@ -586,7 +586,7 @@ function init() {
 			else { // eventuale risposta a 'giorni' ids' o 'mostra'
 				var resp;
 				var value;
-				if(lastmsgsent == 'giorni') {
+				if(lastmsgsent.substring(0,6) == 'giorni') {
 					var giorno;	
 					var data;
 					resp = e.data.split('\n');
@@ -599,7 +599,7 @@ function init() {
 					acked = true;
 					navigator.notification.beep(1);	
 					alert("Scelta data pronta");
-					$('#btdata').hide();
+					//$('#btdata').hide();
 				}
 				else if(lastmsgsent == 'ids   ') {
 					resp = e.data.split('\n');
@@ -610,7 +610,7 @@ function init() {
 					acked = true;
 					navigator.notification.beep(1);	
 					alert("Scelta ids pronta");
-					$("#btids").hide();
+					//$("#btids").hide();
 				}
 				else if(lastmsgsent == 'mostra') {
 					resp = e.data.split('\n');
@@ -679,8 +679,14 @@ function getDateViaggi() {
 		navigator.geolocation.clearWatch(WATCHpos);
 	}
 	if(acked) {
+		if($('select[name="select-ids"]').val() == null) {
+			alert('devi scegliere ID');
+			return;
+		}
+		$('#select-data').empty();
+		var id = $('select[name="select-ids"]').val();
 		acked = false;
-		lastmsgsent = 'giorni';
+		lastmsgsent = 'giorni;'+id;
 		ws.send(lastmsgsent);
 	}
 }
@@ -688,6 +694,7 @@ function getDateViaggi() {
 function getIDsViaggi() {
 	$('#messages').hide();
 	$('#selviaggi').show();
+	$('#select-ids').empty();
 	if(WATCHpos != null) {
 		navigator.geolocation.clearWatch(WATCHpos);
 	}
